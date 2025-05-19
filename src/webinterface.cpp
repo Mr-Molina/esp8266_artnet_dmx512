@@ -82,6 +82,13 @@ bool loadConfig()
   }
 
   std::unique_ptr<char[]> buf(new char[size]);
+  if (!buf)
+  {
+    Serial.println("Memory allocation failed");
+    configFile.close();
+    return false;
+  }
+
   configFile.readBytes(buf.get(), size);
   configFile.close();
 
@@ -93,19 +100,19 @@ bool loadConfig()
     return false;
   }
 
-  if (root.containsKey("universe"))
+  if (root["universe"].is<uint16_t>())
   {
     uint16_t value = root["universe"].as<uint16_t>();
     config.universe = constrain(value, UNIVERSE_MIN, UNIVERSE_MAX);
   }
 
-  if (root.containsKey("channels"))
+  if (root["channels"].is<uint16_t>())
   {
     uint16_t value = root["channels"].as<uint16_t>();
     config.channels = constrain(value, CHANNELS_MIN, CHANNELS_MAX);
   }
 
-  if (root.containsKey("delay"))
+  if (root["delay"].is<uint16_t>())
   {
     uint16_t value = root["delay"].as<uint16_t>();
     config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
@@ -222,13 +229,23 @@ void handleDirList()
 {
   Serial.println("handleDirList");
   String str = "";
+  const size_t maxSize = 4096; // Set a reasonable limit
+  size_t currentSize = 0;
+
   Dir dir = LittleFS.openDir("/");
-  while (dir.next())
+  while (dir.next() && currentSize < maxSize)
   {
-    str += dir.fileName();
-    str += " ";
-    str += dir.fileSize();
-    str += " bytes\r\n";
+    String entry = dir.fileName() + " " + String(dir.fileSize()) + " bytes\r\n";
+    if (currentSize + entry.length() <= maxSize)
+    {
+      str += entry;
+      currentSize += entry.length();
+    }
+    else
+    {
+      str += "[listing truncated]";
+      break;
+    }
   }
   server.send(200, "text/plain", str);
 }
@@ -283,8 +300,13 @@ bool handleStaticFile(String path)
   Serial.println("handleStaticFile: " + path);
   String contentType = getContentType(path); // Get the MIME type
   if (LittleFS.exists(path))
-  {                                       // If the file exists
+  {
     File file = LittleFS.open(path, "r"); // Open it
+    if (!file)
+    {
+      Serial.println("\tFailed to open file");
+      return false;
+    }
     server.setContentLength(file.size());
     server.streamFile(file, contentType); // And send it to the client
     file.close();                         // Then close the file again
@@ -308,21 +330,21 @@ void handleJSON()
     if (server.hasArg("universe"))
     {
       unsigned int value = server.arg("universe").toInt();
-      config.universe = constrain(value, 1, 32767);
+      config.universe = constrain(value, UNIVERSE_MIN, UNIVERSE_MAX);
       configChanged = true;
     }
 
     if (server.hasArg("channels"))
     {
       unsigned int value = server.arg("channels").toInt();
-      config.channels = constrain(value, 1, 512);
+      config.channels = constrain(value, CHANNELS_MIN, CHANNELS_MAX);
       configChanged = true;
     }
 
     if (server.hasArg("delay"))
     {
       unsigned int value = server.arg("delay").toInt();
-      config.delay = constrain(value, 1, 1000);
+      config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
       configChanged = true;
     }
 
@@ -332,6 +354,15 @@ void handleJSON()
   {
     // parse the body as JSON object
     JsonDocument root;
+    const size_t MAX_JSON_SIZE = 1024; // Set a reasonable limit
+
+    if (server.arg("plain").length() > MAX_JSON_SIZE)
+    {
+      Serial.println("JSON data too large");
+      handleStaticFile("/reload_failure.html");
+      return;
+    }
+
     DeserializationError error = deserializeJson(root, server.arg("plain").c_str(), server.arg("plain").length());
     if (error)
     {
@@ -342,24 +373,24 @@ void handleJSON()
     }
 
     // Load and validate configuration values
-    if (root.containsKey("universe"))
+    if (root["universe"].is<unsigned int>())
     {
       unsigned int value = root["universe"].as<unsigned int>();
-      config.universe = constrain(value, 1, 32767);
+      config.universe = constrain(value, UNIVERSE_MIN, UNIVERSE_MAX);
       configChanged = true;
     }
 
-    if (root.containsKey("channels"))
+    if (root["channels"].is<unsigned int>())
     {
       unsigned int value = root["channels"].as<unsigned int>();
-      config.channels = constrain(value, 1, 512);
+      config.channels = constrain(value, CHANNELS_MIN, CHANNELS_MAX);
       configChanged = true;
     }
 
-    if (root.containsKey("delay"))
+    if (root["delay"].is<unsigned int>())
     {
       unsigned int value = root["delay"].as<unsigned int>();
-      config.delay = constrain(value, 1, 1000);
+      config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
       configChanged = true;
     }
 

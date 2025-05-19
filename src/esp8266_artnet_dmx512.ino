@@ -22,7 +22,6 @@
 #include <ArduinoJson.h>
 #include <cstdint> // Add for fixed-width types
 
-#include "rgb_led.h"
 #include "webinterface.h"
 
 #define MIN(x, y) (x < y ? x : y)
@@ -267,8 +266,6 @@ void setup()
   }
   Serial.println("Setup starting");
 
-  // set up three output pins for a RGB status LED
-  ledInit();
 
 #ifdef ENABLE_UART
   // Serial1 output is for DMX signalling to the MAX485 module
@@ -323,24 +320,14 @@ void setup()
   // The LittleFS file system contains the html and javascript code for the web interface
   LittleFS.begin();
 
-  if (loadConfig())
-  {
-    ledYellow();
-    delay(1000);
-  }
-  else
-  {
-    ledRed();
-    delay(1000);
-  }
+
 
   WiFiManager wifiManager;
   wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
   wifiManager.autoConnect(host);
   Serial.println("connected");
 
-  if (WiFi.status() != WL_CONNECTED)
-    ledRed();
+
 
 #ifdef ENABLE_STANDALONE
   Serial.println("Starting WiFiManager (non-blocking mode)");
@@ -359,8 +346,6 @@ void setup()
 #endif
   Serial.println("connected");
 
-  if (WiFi.status() == WL_CONNECTED)
-    ledGreen();
 
 #ifdef ENABLE_ARDUINO_OTA
   Serial.println("Initializing Arduino OTA");
@@ -424,7 +409,7 @@ void setup()
     tic_web = millis();
     Serial.println("handleReconnect");
     handleStaticFile("/reload_success.html");
-    ledRed();
+    
     server.close();
     server.stop();
     delay(5000);
@@ -434,15 +419,14 @@ void setup()
     wifiManager.startConfigPortal(host);
     Serial.println("connected");
     server.begin();
-    if (WiFi.status() == WL_CONNECTED)
-      ledGreen(); });
+ 
+    });
 
   server.on("/restart", HTTP_GET, []()
             {
     tic_web = millis();
     Serial.println("handleRestart");
     handleStaticFile("/reload_success.html");
-    ledRed();
     server.close();
     server.stop();
     LittleFS.end();
@@ -541,7 +525,7 @@ void loop()
 
   if (WiFi.status() != WL_CONNECTED)
   {
-    ledRed();
+
     delay(10);
 #ifndef ENABLE_STANDALONE
     return;
@@ -551,12 +535,12 @@ void loop()
   if ((millis() - tic_web) < 5000)
   {
     // give feedback that the webinterface is active
-    ledBlue();
+
     delay(25);
   }
   else
   {
-    ledGreen();
+
     artnet.read();
 
     // this section gets executed at a maximum rate of around 40Hz
