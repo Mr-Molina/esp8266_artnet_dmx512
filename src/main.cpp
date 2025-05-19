@@ -1,16 +1,30 @@
 /*
-   This sketch receives Art-Net data of one DMX universes over WiFi
-   and sends it to a MAX485 module as an interface between wireless
-   Art-Net and wired DMX512.
-
-   This firmware can either use the UART (aka Serial) interface to
-   the MAX485 module, or the I2S interface. Note that the wiring
-   depends on whether you use UART or I2S.
-
-   See https://robertoostenveld.nl/art-net-to-dmx512-with-esp8266/
-   and comments to that blog post.
-
-   See https://github.com/robertoostenveld/esp8266_artnet_dmx512
+   WHAT THIS PROGRAM DOES:
+   ----------------------
+   This program (or "sketch") receives lighting control data over WiFi and sends it to 
+   stage lights. It's like a translator between the internet and your lights!
+   
+   HOW IT WORKS:
+   ------------
+   1. It receives Art-Net data (a type of lighting control protocol) over WiFi
+   2. It converts this data to DMX512 format (the language that most stage lights understand)
+   3. It sends this data to a MAX485 chip, which connects to your lights
+   
+   HARDWARE OPTIONS:
+   ---------------
+   This program can connect to your lights in two different ways:
+   - UART (Universal Asynchronous Receiver/Transmitter): This is like a simple digital walkie-talkie
+   - I2S (Inter-IC Sound): This is normally used for audio but works great for DMX too!
+   
+   IMPORTANT: The way you connect the wires depends on which method you choose (UART or I2S)
+   
+   MORE INFORMATION:
+   ---------------
+   For more details and pictures, visit:
+   https://robertoostenveld.nl/art-net-to-dmx512-with-esp8266/
+   
+   The full code is available at:
+   https://github.com/robertoostenveld/esp8266_artnet_dmx512
 */
 
 #include <Arduino.h>
@@ -62,20 +76,22 @@
 // #define WITH_TEST_CODE
 
 // Constants
-const char* host = "ARTNET";
-const char* version = __DATE__ " / " __TIME__;
+const char *host = "ARTNET";
+const char *version = __DATE__ " / " __TIME__;
 constexpr uint16_t DMX_CHANNELS = 512;
 
 // Global objects
 ESP8266WebServer server(80);
-NetworkManager* networkManager = nullptr;
-ArtnetManager* artnetManager = nullptr;
-DmxOutput* dmxOutput = nullptr;
+NetworkManager *networkManager = nullptr;
+ArtnetManager *artnetManager = nullptr;
+DmxOutput *dmxOutput = nullptr;
 
 // Global variables
 unsigned long tic_web = 0;
 unsigned long last_packet_received = 0;
-uint8_t* dmxData = nullptr;
+uint8_t *dmxData = nullptr;
+float fps = 0.0f;
+uint32_t packetCounter = 0;
 
 #ifdef ENABLE_ARDUINO_OTA
 #include <ArduinoOTA.h>
@@ -84,9 +100,11 @@ unsigned int last_ota_progress = 0;
 #endif
 
 // This will be called for each UDP packet that is received
-void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data) {
+void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *data)
+{
   unsigned long now = millis();
-  if (now - last_packet_received > 1000) {
+  if (now - last_packet_received > 1000)
+  {
     Serial.print("Received DMX data\n");
   }
   last_packet_received = now;
@@ -95,11 +113,12 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* 
   artnetManager->updateStatistics();
 
   // Process only if universe matches configuration
-  if (universe == config.universe) {
+  if (universe == config.universe)
+  {
     // Copy DMX data to our buffer
     uint16_t channelsToProcess = min(length, (uint16_t)DMX_CHANNELS);
     memcpy(dmxData, data, channelsToProcess);
-    
+
     // Store universe and sequence for reference
     // (These could be moved to the ArtnetManager class)
     // global.universe = universe;
@@ -108,29 +127,33 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* 
 }
 
 #ifdef WITH_TEST_CODE
-void testCode() {
+void testCode()
+{
   long now = millis();
   uint8_t x = (now / 60) % 240;
-  if (x > 120) {
+  if (x > 120)
+  {
     x = 240 - x;
   }
 
   // Set DMX values for test pattern
-  dmxData[1] = x;    // x 0 - 170
-  dmxData[2] = 0;    // x fine
-  dmxData[3] = x;    // y: 0: -horz. 120: vert, 240: +horz
-  dmxData[4] = 0;    // y fine
-  dmxData[5] = 30;   // color wheel: red
-  dmxData[6] = 0;    // pattern
-  dmxData[7] = 0;    // strobe
-  dmxData[8] = 150;  // brightness
+  dmxData[1] = x;   // x 0 - 170
+  dmxData[2] = 0;   // x fine
+  dmxData[3] = x;   // y: 0: -horz. 120: vert, 240: +horz
+  dmxData[4] = 0;   // y fine
+  dmxData[5] = 30;  // color wheel: red
+  dmxData[6] = 0;   // pattern
+  dmxData[7] = 0;   // strobe
+  dmxData[8] = 150; // brightness
 }
 #endif
 
-void setup() {
+void setup()
+{
   // Initialize serial for debugging
   Serial.begin(115200);
-  while (!Serial) {
+  while (!Serial)
+  {
     ;
   }
   Serial.println("Setup starting");
@@ -143,23 +166,24 @@ void setup() {
   LittleFS.begin();
 
   // Load configuration
-  if (!loadConfig()) {
+  if (!loadConfig())
+  {
     defaultConfig();
     saveConfig();
   }
 
   // Initialize network manager
   networkManager = new NetworkManager(host);
-  
+
   // Connect to WiFi
 #ifdef ENABLE_STANDALONE
   networkManager->begin(true, STANDALONE_PASSWORD);
 #else
-  #ifdef STANDALONE_PASSWORD
-    networkManager->begin(false, STANDALONE_PASSWORD);
-  #else
-    networkManager->begin();
-  #endif
+#ifdef STANDALONE_PASSWORD
+  networkManager->begin(false, STANDALONE_PASSWORD);
+#else
+  networkManager->begin();
+#endif
 #endif
 
 #ifdef ENABLE_MDNS
@@ -171,24 +195,22 @@ void setup() {
   Serial.println("Initializing Arduino OTA");
   ArduinoOTA.setHostname(host);
   ArduinoOTA.setPassword(ARDUINO_OTA_PASSWORD);
-  ArduinoOTA.onStart([]() {
-    Serial.println("OTA Start");
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+  ArduinoOTA.onStart([]()
+                     { Serial.println("OTA Start"); });
+  ArduinoOTA.onError([](ota_error_t error)
+                     { Serial.printf("Error[%u]: ", error); });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                        {
     if (progress != last_ota_progress) {
       Serial.printf("OTA Progress: %u%%\n", (progress / (total / 100)));
       last_ota_progress = progress;
-    }
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("OTA End");
-  });
+    } });
+  ArduinoOTA.onEnd([]()
+                   { Serial.println("OTA End"); });
   Serial.println("Arduino OTA init complete");
 
-  if (networkManager->isConnected()) {
+  if (networkManager->isConnected())
+  {
     Serial.println("Starting Arduino OTA (setup)");
     ArduinoOTA.begin();
     arduinoOtaStarted = true;
@@ -201,13 +223,13 @@ void setup() {
 #endif
 
 #ifdef ENABLE_I2S
-  #ifdef I2S_SUPER_SAFE
-    dmxOutput = new DmxI2s(true);
-    Serial.println("Using super safe I2S timing");
-  #else
-    dmxOutput = new DmxI2s(false);
-    Serial.println("Using normal I2S timing");
-  #endif
+#ifdef I2S_SUPER_SAFE
+  dmxOutput = new DmxI2s(true);
+  Serial.println("Using super safe I2S timing");
+#else
+  dmxOutput = new DmxI2s(false);
+  Serial.println("Using normal I2S timing");
+#endif
 #endif
 
   dmxOutput->begin();
@@ -230,15 +252,18 @@ void setup() {
   Serial.println("Setup done");
 }
 
-void loop() {
+void loop()
+{
   unsigned long now = millis();
-  
+
   // Handle network tasks when not receiving DMX data
-  if (now - last_packet_received > 1000) {
+  if (now - last_packet_received > 1000)
+  {
     networkManager->process();
-    
+
 #ifdef ENABLE_ARDUINO_OTA
-    if (networkManager->isConnected() && !arduinoOtaStarted) {
+    if (networkManager->isConnected() && !arduinoOtaStarted)
+    {
       Serial.println("Starting Arduino OTA (loop)");
       ArduinoOTA.begin();
       arduinoOtaStarted = true;
@@ -246,12 +271,13 @@ void loop() {
     ArduinoOTA.handle();
 #endif
   }
-  
+
   // Handle web server requests
   server.handleClient();
 
   // Check WiFi connection
-  if (!networkManager->isConnected()) {
+  if (!networkManager->isConnected())
+  {
     delay(10);
 #ifndef ENABLE_STANDALONE
     return;
@@ -259,15 +285,23 @@ void loop() {
   }
 
   // Handle web interface activity
-  if ((millis() - tic_web) < 5000) {
+  if ((millis() - tic_web) < 5000)
+  {
     // Web interface is active, slow down a bit
     delay(25);
-  } else {
+  }
+  else
+  {
     // Read ArtNet data
     artnetManager->read();
 
+    // Update global statistics for webinterface.cpp
+    packetCounter = artnetManager->getPacketCounter();
+    fps = artnetManager->getFramesPerSecond();
+
     // Send DMX data at configured rate
-    if ((millis() - now) > config.delay) {
+    if ((millis() - now) > config.delay)
+    {
 #ifdef WITH_TEST_CODE
       testCode();
 #endif

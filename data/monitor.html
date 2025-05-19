@@ -14,13 +14,17 @@ Firmware version:
 <div id="version" name="version">?</div>
 
 Uptime:
-<div id="uptime" name"uptime">?</div>
+<div id="uptime" name="uptime">?</div>
 
 Packets received:
 <div id="packets" name="packets">?</div>
 
 Frames per second:
 <div id="fps" name="fps">?</div>
+
+<div class="nav-button">
+  <a href="/index.html"><button>Back to Main</button></a>
+</div>
 
 <script>
   async function updateContent() {
@@ -33,6 +37,9 @@ Frames per second:
     document.getElementById("fps").innerHTML = data["fps"];
   }
   updateContent();
+  
+  // Auto-refresh every 5 seconds
+  setInterval(updateContent, 5000);
 </script>
 
 </body>

@@ -1,4 +1,5 @@
 #include "webinterface.h"
+#include <WiFiManager.h> // Add this include
 
 constexpr uint16_t UNIVERSE_MIN = 1;
 constexpr uint16_t UNIVERSE_MAX = 32767;
@@ -15,16 +16,18 @@ extern uint32_t packetCounter;
 
 /***************************************************************************/
 
-void setupWebServer(ESP8266WebServer& server) {
+void setupWebServer(ESP8266WebServer &server)
+{
   // This serves all URIs that can be resolved to a file on the LittleFS filesystem
   server.onNotFound(handleNotFound);
 
-  server.on("/", HTTP_GET, []() {
+  server.on("/", HTTP_GET, [&server]() { // capture server by reference
     tic_web = millis();
     handleRedirect("/index.html");
   });
 
-  server.on("/defaults", HTTP_GET, []() {
+  server.on("/defaults", HTTP_GET, [&server]()
+            {
     tic_web = millis();
     Serial.println("handleDefaults");
     handleStaticFile("/reload_success.html");
@@ -32,14 +35,13 @@ void setupWebServer(ESP8266WebServer& server) {
     saveConfig();
     server.close();
     server.stop();
-    ESP.restart();
-  });
+    ESP.restart(); });
 
-  server.on("/reconnect", HTTP_GET, []() {
+  server.on("/reconnect", HTTP_GET, [&server]()
+            {
     tic_web = millis();
     Serial.println("handleReconnect");
     handleStaticFile("/reload_success.html");
-    
     server.close();
     server.stop();
     delay(5000);
@@ -48,10 +50,10 @@ void setupWebServer(ESP8266WebServer& server) {
     wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
     wifiManager.startConfigPortal("ARTNET");
     Serial.println("connected");
-    server.begin();
-  });
+    server.begin(); });
 
-  server.on("/restart", HTTP_GET, []() {
+  server.on("/restart", HTTP_GET, [&server]()
+            {
     tic_web = millis();
     Serial.println("handleRestart");
     handleStaticFile("/reload_success.html");
@@ -59,25 +61,25 @@ void setupWebServer(ESP8266WebServer& server) {
     server.stop();
     LittleFS.end();
     delay(5000);
-    ESP.restart();
-  });
+    ESP.restart(); });
 
-  server.on("/dir", HTTP_GET, []() {
+  server.on("/dir", HTTP_GET, [&server]()
+            {
     tic_web = millis();
-    handleDirList();
-  });
+    handleDirList(); });
 
-  server.on("/json", HTTP_PUT, []() {
+  server.on("/json", HTTP_PUT, [&server]()
+            {
     tic_web = millis();
-    handleJSON();
-  });
+    handleJSON(); });
 
-  server.on("/json", HTTP_POST, []() {
+  server.on("/json", HTTP_POST, [&server]()
+            {
     tic_web = millis();
-    handleJSON();
-  });
+    handleJSON(); });
 
-  server.on("/json", HTTP_GET, []() {
+  server.on("/json", HTTP_GET, [&server]()
+            {
     tic_web = millis();
     JsonDocument root;
     N_CONFIG_TO_JSON(universe, "universe");
@@ -90,13 +92,12 @@ void setupWebServer(ESP8266WebServer& server) {
     String str;
     serializeJson(root, str);
     server.setContentLength(str.length());
-    server.send(200, "application/json", str);
-  });
+    server.send(200, "application/json", str); });
 
-  server.on("/update", HTTP_GET, []() {
+  server.on("/update", HTTP_GET, [&server]()
+            {
     tic_web = millis();
-    handleStaticFile("/update.html");
-  });
+    handleStaticFile("/update.html"); });
 
   server.on("/update", HTTP_POST, handleUpdate1, handleUpdate2);
 }

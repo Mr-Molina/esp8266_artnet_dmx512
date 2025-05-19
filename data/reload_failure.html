@@ -8,10 +8,17 @@
 
 <body>
 
-<p>Failure</p>
+<div class="error-message">
+  <p>Operation failed!</p>
+  <p>Redirecting to main page...</p>
+</div>
+
+<div class="nav-button">
+  <a href="/index.html"><button>Return Now</button></a>
+</div>
 
 <script type="text/javascript">
-  setTimeout(function(){location="/index.html"},1000);
+  setTimeout(function(){location="/index.html"},3000);
 </script>
 
 </body>

@@ -1,18 +1,113 @@
 <!doctype html>
 <html lang="en">
 <head>
-<title>Index</title>
+<title>Art-Net DMX Controller</title>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="style.css" rel="stylesheet" type="text/css">
+<style>
+  .menu-container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .menu-item {
+    margin: 10px 0;
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    padding: 10px;
+  }
+  .menu-item a {
+    text-decoration: none;
+    color: #333;
+    display: block;
+    font-size: 1.2em;
+  }
+  .menu-item:hover {
+    background-color: #f5f5f5;
+  }
+  .menu-section {
+    margin-top: 30px;
+    border-top: 1px solid #ddd;
+    padding-top: 20px;
+  }
+  .menu-section-title {
+    color: #0b86ca;
+    margin-bottom: 15px;
+  }
+  .status {
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    color: #666;
+  }
+  .danger {
+    background-color: #f8d7da;
+  }
+  .danger a {
+    color: #721c24;
+  }
+</style>
 </head>
 
 <body>
-<a href="/hello.html">Hello</a></br>
-<a href="/monitor.html">Monitor</a></br>
-<a href="/settings.html">Change settings</a></br>
-<a href="/reconnect">Reconnect WiFi</a></br>
-<a href="/defaults">Default settings</a></br>
-<a href="/update.html">Update firmware</a></br>
-<a href="/restart">Restart hardware</a></br>
+<h1>Art-Net DMX Controller</h1>
+
+<div class="status">
+  <div id="status-info">Loading status...</div>
+</div>
+
+<div class="menu-container">
+  <div class="menu-section">
+    <h2 class="menu-section-title">Monitoring</h2>
+    <div class="menu-item">
+      <a href="/monitor.html">View Status & Statistics</a>
+    </div>
+  </div>
+  
+  <div class="menu-section">
+    <h2 class="menu-section-title">Configuration</h2>
+    <div class="menu-item">
+      <a href="/settings.html">DMX Settings</a>
+    </div>
+    <div class="menu-item">
+      <a href="/reconnect">WiFi Configuration</a>
+    </div>
+    <div class="menu-item">
+      <a href="/defaults">Reset to Default Settings</a>
+    </div>
+  </div>
+  
+  <div class="menu-section">
+    <h2 class="menu-section-title">System</h2>
+    <div class="menu-item">
+      <a href="/update.html">Update Firmware</a>
+    </div>
+    <div class="menu-item danger">
+      <a href="/restart">Restart Device</a>
+    </div>
+  </div>
+  
+  <div class="menu-section">
+    <h2 class="menu-section-title">Other</h2>
+    <div class="menu-item">
+      <a href="/hello.html">Hello Page</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function updateStatus() {
+    try {
+      const response = await fetch("json");
+      const data = await response.json();
+      document.getElementById("status-info").innerHTML = 
+        `Firmware: ${data.version} | Uptime: ${data.uptime}s | FPS: ${data.fps.toFixed(1)}`;
+    } catch (e) {
+      document.getElementById("status-info").innerHTML = "Status unavailable";
+    }
+  }
+  updateStatus();
+</script>
+
 </body>
 </html>
