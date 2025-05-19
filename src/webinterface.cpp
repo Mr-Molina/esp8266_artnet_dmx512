@@ -56,7 +56,7 @@ bool loadConfig() {
   configFile.close();
 
   JsonDocument root;
-  DeserializationError error = deserializeJson(root, buf.get());
+  DeserializationError error = deserializeJson(root, buf.get(), size);
   if (error) {
     Serial.println("Failed to parse config file");
     return false;
@@ -223,7 +223,7 @@ void handleJSON() {
   else if (server.hasArg("plain")) {
     // parse the body as JSON object
     JsonDocument root;
-    DeserializationError error = deserializeJson(root, server.arg("plain"));
+    DeserializationError error = deserializeJson(root, server.arg("plain").c_str(), server.arg("plain").length());
     if (error) {
       handleStaticFile("/reload_failure.html");
       return;
