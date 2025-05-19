@@ -14,6 +14,10 @@
 // It lets you control and configure the device through a web page.
 // ================================================================
 
+// Debug flags - defined in main.cpp
+extern bool DEBUG_WEB;
+extern bool DEBUG_DMX;
+
 // Check if we have the right version of ArduinoJson library
 #ifndef ARDUINOJSON_VERSION
 #error ArduinoJson version 7 not found, please include ArduinoJson.h in your .ino file

@@ -42,12 +42,48 @@ void setupWebServer(ESP8266WebServer &server)
     tic_web = millis();
     Serial.println("handleReconnect");
     handleStaticFile("/reload_success.html");
+    
+    // Store the current WiFi credentials before resetting
+    String ssid = WiFi.SSID();
+    String pass = WiFi.psk();
+    
     server.close();
     server.stop();
-    delay(5000);
+    delay(1000);
+    
     WiFiManager wifiManager;
-    wifiManager.resetSettings();
+    // Only reset settings if explicitly requested with a query parameter
+    if (server.hasArg("reset") && server.arg("reset") == "true") {
+      wifiManager.resetSettings();
+      Serial.println("WiFi settings reset requested");
+    } else {
+      // Otherwise, just start the portal but keep existing credentials
+      Serial.println("Starting config portal with existing credentials");
+    }
+    
     wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
+    
+    // If we have existing credentials, try to connect with them first
+    if (ssid.length() > 0 && !server.hasArg("reset")) {
+      WiFi.begin(ssid, pass);
+      
+      // Wait up to 10 seconds for connection
+      int timeout = 20;
+      while (timeout > 0 && WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        timeout--;
+        Serial.print(".");
+      }
+      Serial.println();
+      
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("Reconnected to existing WiFi");
+        server.begin();
+        return;
+      }
+    }
+    
+    // If we couldn't connect with existing credentials, start the portal
     wifiManager.startConfigPortal("ARTNET");
     Serial.println("connected");
     server.begin(); });
@@ -143,7 +179,9 @@ static String getContentType(const String &path)
 
 bool defaultConfig()
 {
-  Serial.println("defaultConfig");
+  if (DEBUG_WEB) {
+    Serial.println("defaultConfig");
+  }
 
   config.universe = UNIVERSE_MIN;
   config.channels = CHANNELS_MAX;
@@ -154,19 +192,25 @@ bool defaultConfig()
 
 bool loadConfig()
 {
-  Serial.println("loadConfig");
+  if (DEBUG_WEB) {
+    Serial.println("loadConfig");
+  }
 
   File configFile = LittleFS.open("/config.json", "r");
   if (!configFile)
   {
-    Serial.println("Failed to open config file");
+    if (DEBUG_WEB) {
+      Serial.println("Failed to open config file");
+    }
     return false;
   }
 
   size_t size = configFile.size();
   if (size > 1024)
   {
-    Serial.println("Config file size is too large");
+    if (DEBUG_WEB) {
+      Serial.println("Config file size is too large");
+    }
     configFile.close();
     return false;
   }
@@ -174,7 +218,9 @@ bool loadConfig()
   std::unique_ptr<char[]> buf(new char[size]);
   if (!buf)
   {
-    Serial.println("Memory allocation failed");
+    if (DEBUG_WEB) {
+      Serial.println("Memory allocation failed");
+    }
     configFile.close();
     return false;
   }
@@ -186,7 +232,9 @@ bool loadConfig()
   DeserializationError error = deserializeJson(root, buf.get(), size);
   if (error)
   {
-    Serial.println("Failed to parse config file");
+    if (DEBUG_WEB) {
+      Serial.println("Failed to parse config file");
+    }
     return false;
   }
 
@@ -213,7 +261,9 @@ bool loadConfig()
 
 bool saveConfig()
 {
-  Serial.println("saveConfig");
+  if (DEBUG_WEB) {
+    Serial.println("saveConfig");
+  }
   JsonDocument root;
 
   root["universe"] = constrain(config.universe, UNIVERSE_MIN, UNIVERSE_MAX);
@@ -227,28 +277,38 @@ bool saveConfig()
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile)
   {
-    Serial.println("Failed to open config file for writing");
+    if (DEBUG_WEB) {
+      Serial.println("Failed to open config file for writing");
+    }
     return false;
   }
 
-  Serial.println("Writing to config file");
+  if (DEBUG_WEB) {
+    Serial.println("Writing to config file");
+  }
   size_t bytesWritten = serializeJson(root, configFile);
   configFile.close();
 
   if (bytesWritten == 0)
   {
-    Serial.println("Failed to write to config file");
+    if (DEBUG_WEB) {
+      Serial.println("Failed to write to config file");
+    }
     return false;
   }
 
-  Serial.print("Config saved successfully (");
-  Serial.print(bytesWritten);
-  Serial.println(" bytes)");
+  if (DEBUG_WEB) {
+    Serial.print("Config saved successfully (");
+    Serial.print(bytesWritten);
+    Serial.println(" bytes)");
+  }
   return true;
 }
 
 void printRequest()
 {
+  if (!DEBUG_WEB) return;
+  
   String message = "HTTP Request\n\n";
   message += "URI: ";
   message += server.uri();
@@ -317,7 +377,9 @@ void handleUpdate2()
 
 void handleDirList()
 {
-  Serial.println("handleDirList");
+  if (DEBUG_WEB) {
+    Serial.println("handleDirList");
+  }
   String str = "";
   const size_t maxSize = 4096; // Set a reasonable limit
   size_t currentSize = 0;
@@ -342,8 +404,10 @@ void handleDirList()
 
 void handleNotFound()
 {
-  Serial.print("handleNotFound: ");
-  Serial.println(server.uri());
+  if (DEBUG_WEB) {
+    Serial.print("handleNotFound: ");
+    Serial.println(server.uri());
+  }
   if (LittleFS.exists(server.uri()))
   {
     handleStaticFile(server.uri());
@@ -374,7 +438,9 @@ void handleRedirect(const char *filename)
 
 void handleRedirect(String filename)
 {
-  Serial.println("handleRedirect: " + filename);
+  if (DEBUG_WEB) {
+    Serial.println("handleRedirect: " + filename);
+  }
   server.sendHeader("Location", filename, true);
   server.setContentLength(0);
   server.send(302, "text/plain", "");
@@ -387,14 +453,18 @@ bool handleStaticFile(const char *path)
 
 bool handleStaticFile(String path)
 {
-  Serial.println("handleStaticFile: " + path);
+  if (DEBUG_WEB) {
+    Serial.println("handleStaticFile: " + path);
+  }
   String contentType = getContentType(path); // Get the MIME type
   if (LittleFS.exists(path))
   {
     File file = LittleFS.open(path, "r"); // Open it
     if (!file)
     {
-      Serial.println("\tFailed to open file");
+      if (DEBUG_WEB) {
+        Serial.println("\tFailed to open file");
+      }
       return false;
     }
     server.setContentLength(file.size());
@@ -402,15 +472,19 @@ bool handleStaticFile(String path)
     file.close();                         // Then close the file again
     return true;
   }
-  Serial.println("\tFile Not Found");
+  if (DEBUG_WEB) {
+    Serial.println("\tFile Not Found");
+  }
   return false; // If the file doesn't exist, return false
 }
 
 void handleJSON()
 {
   // this gets called in response to either a PUT or a POST
-  Serial.println("handleJSON");
-  printRequest();
+  if (DEBUG_WEB) {
+    Serial.println("handleJSON");
+    printRequest();
+  }
 
   bool configChanged = false;
 

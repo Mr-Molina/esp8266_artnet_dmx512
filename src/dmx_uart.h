@@ -6,6 +6,7 @@
 #include "c_types.h"
 #include "eagle_soc.h"
 #include "uart_register.h"
+#include <SoftwareSerial.h>
 
 // ================================================================
 // WHAT IS THIS FILE?
@@ -18,6 +19,9 @@
 #define DMX_BREAK 92   // The "break" signal must be at least 92 microseconds
 #define DMX_MAB 12     // The "Mark After Break" must be at least 12 microseconds
 #define SEROUT_UART 1  // We're using UART #1 for our serial output
+
+// Define the pin to use for DMX output
+#define DMX_TX_PIN 14  // Using GPIO14 for DMX output
 
 // This class implements the DmxOutput interface using UART (serial communication)
 // UART stands for Universal Asynchronous Receiver/Transmitter
@@ -53,6 +57,9 @@ private:
   // Send the DMX break signal using a low-level hardware method
   // This is an alternative way to send the break signal
   void sendLowLevelBreak();
+  
+  // Software serial instance for DMX output on custom pin
+  SoftwareSerial* dmxSerial;
   
   // Variables to track statistics
   unsigned long packetCounter;   // How many packets we've sent

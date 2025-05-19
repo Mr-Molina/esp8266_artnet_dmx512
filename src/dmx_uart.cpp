@@ -3,81 +3,60 @@
 // Constructor: Sets up a new DmxUart with all counters at zero
 DmxUart::DmxUart() : packetCounter(0), lastPacketTime(0), useSerialBreak(true) {
   // We start with the serial break method by default
+  dmxSerial = new SoftwareSerial(255, DMX_TX_PIN); // RX pin not used (255), TX on GPIO14
 }
 
 // Destructor: Cleans up when we're done with the DmxUart
 DmxUart::~DmxUart() {
-  // Nothing to clean up right now
+  // Clean up the software serial instance
+  if (dmxSerial) {
+    delete dmxSerial;
+    dmxSerial = nullptr;
+  }
 }
 
 // Initialize the UART hardware for DMX output
 void DmxUart::begin() {
-  // Initialize Serial1 for DMX output with these settings:
+  // Initialize Software Serial for DMX output with these settings:
   // - 250,000 bits per second (this is the standard DMX speed)
   // - 8 data bits (each DMX channel value is 8 bits)
   // - No parity bit (DMX doesn't use parity checking)
   // - 2 stop bits (DMX standard requires 2 stop bits)
-  Serial1.begin(250000, SERIAL_8N2);
+  dmxSerial->begin(250000);
+  
+  // Configure the pin as output
+  pinMode(DMX_TX_PIN, OUTPUT);
+  digitalWrite(DMX_TX_PIN, HIGH); // Idle state is high
+  
+  Serial.print("DMX UART initialized on pin ");
+  Serial.println(DMX_TX_PIN);
 }
 
 // Send the DMX break signal using the serial method
 void DmxUart::sendSerialBreak() {
-  // A clever trick: To create a break, we temporarily slow down
-  // the serial speed, which makes the bits longer
-  
-  // First, make sure all pending data is sent
-  Serial1.flush();
-  
-  // Switch to a slower speed (90,000 bits per second)
-  Serial1.begin(90000, SERIAL_8N2);
-  
-  // Clear any incoming data (just to be safe)
-  while (Serial1.available())
-    Serial1.read();
-  
-  // Send a zero byte at the slower speed
-  // This creates a longer low signal that acts as our break
-  Serial1.write(0);
-  
-  // Switch back to the normal DMX speed
-  Serial1.flush();
-  Serial1.begin(250000, SERIAL_8N2);
-  
-  // Clear any incoming data again
-  while (Serial1.available())
-    Serial1.read();
+  // For software serial, we'll manually create a break by pulling the line low
+  digitalWrite(DMX_TX_PIN, LOW);
+  delayMicroseconds(DMX_BREAK);  // Hold low for break time
+  digitalWrite(DMX_TX_PIN, HIGH);
+  delayMicroseconds(DMX_MAB);    // Hold high for Mark After Break time
 }
 
 // Send the DMX break signal using a low-level hardware method
 void DmxUart::sendLowLevelBreak() {
-  // This method uses direct hardware control for more precise timing
-  
-  // Turn on the break signal in the UART hardware
-  SET_PERI_REG_MASK(UART_CONF0(SEROUT_UART), UART_TXD_BRK);
-  
-  // Wait for the required break time (92 microseconds minimum)
+  // For software serial, we'll use the same method as sendSerialBreak
+  digitalWrite(DMX_TX_PIN, LOW);
   delayMicroseconds(DMX_BREAK);
-  
-  // Turn off the break signal
-  CLEAR_PERI_REG_MASK(UART_CONF0(SEROUT_UART), UART_TXD_BRK);
-  
-  // Wait for the Mark After Break time (12 microseconds minimum)
+  digitalWrite(DMX_TX_PIN, HIGH);
   delayMicroseconds(DMX_MAB);
 }
 
 // Send DMX lighting control data over UART to the lights
 void DmxUart::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
   // Step 1: Send the DMX break signal (tells lights "new data is coming")
-  if (useSerialBreak) {
-    // Use the serial method
-    sendSerialBreak();
-  } else {
-    // Use the low-level hardware method
-    sendLowLevelBreak();
-  }
+  sendSerialBreak();
   
   // Step 2: Send the start byte (always zero for standard DMX)
-  Serial1.write(0);
+  dmxSerial->write(0);
   
   // Step 3: Send the actual DMX data for each channel
   // First, figure out how many channels to send (the smaller of length or maxChannels)
@@ -85,7 +64,7 @@ void DmxUart::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) 
   
   // Then send each channel's value one by one
   for (uint16_t i = 0; i < channelsToSend; i++) {
-    Serial1.write(data[i]);
+    dmxSerial->write(data[i]);
   }
   
   // Step 4: Update our statistics
