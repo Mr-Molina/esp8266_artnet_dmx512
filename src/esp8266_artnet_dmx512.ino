@@ -303,7 +303,7 @@ void setup() {
 #endif
 
   // The SPIFFS file system contains the html and javascript code for the web interface
-  SPIFFS.begin();
+  LittleFS.begin();
 
   if (loadConfig()) {
     ledYellow();
@@ -423,7 +423,7 @@ void setup() {
     ledRed();
     server.close();
     server.stop();
-    SPIFFS.end();
+    LittleFS.end();
     delay(5000);
     ESP.restart();
   });

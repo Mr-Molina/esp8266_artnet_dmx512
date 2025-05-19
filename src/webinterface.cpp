@@ -39,7 +39,7 @@ bool defaultConfig() {
 bool loadConfig() {
   Serial.println("loadConfig");
 
-  File configFile = SPIFFS.open("/config.json", "r");
+  File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
     Serial.println("Failed to open config file");
     return false;
@@ -78,7 +78,7 @@ bool saveConfig() {
   N_CONFIG_TO_JSON(channels, "channels");
   N_CONFIG_TO_JSON(delay, "delay");
 
-  File configFile = SPIFFS.open("/config.json", "w");
+  File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
     Serial.println("Failed to open config file for writing");
     return false;
@@ -147,7 +147,7 @@ void handleUpdate2() {
 void handleDirList() {
   Serial.println("handleDirList");
   String str = "";
-  Dir dir = SPIFFS.openDir("/");
+  Dir dir = LittleFS.openDir("/");
   while (dir.next()) {
     str += dir.fileName();
     str += " ";
@@ -160,7 +160,7 @@ void handleDirList() {
 void handleNotFound() {
   Serial.print("handleNotFound: ");
   Serial.println(server.uri());
-  if (SPIFFS.exists(server.uri())) {
+  if (LittleFS.exists(server.uri())) {
     handleStaticFile(server.uri());
   }
   else {
@@ -198,8 +198,8 @@ bool handleStaticFile(const char * path) {
 bool handleStaticFile(String path) {
   Serial.println("handleStaticFile: " + path);
   String contentType = getContentType(path);            // Get the MIME type
-  if (SPIFFS.exists(path)) {                            // If the file exists
-    File file = SPIFFS.open(path, "r");                 // Open it
+  if (LittleFS.exists(path)) {                            // If the file exists
+    File file = LittleFS.open(path, "r");                 // Open it
     server.setContentLength(file.size());
     server.streamFile(file, contentType);               // And send it to the client
     file.close();                                       // Then close the file again

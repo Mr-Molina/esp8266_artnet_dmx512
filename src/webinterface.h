@@ -5,15 +5,15 @@
 #include <ESP8266WebServer.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
-#include <FS.h>
+#include <LittleFS.h>
 
 #ifndef ARDUINOJSON_VERSION
 #error ArduinoJson version 6 not found, please include ArduinoJson.h in your .ino file
 #endif
 
-#if ARDUINOJSON_VERSION_MAJOR != 6
-#error ArduinoJson version 6 is required
-#endif
+//#if ARDUINOJSON_VERSION_MAJOR != 6
+//#error ArduinoJson version 6 is required
+//#endif
 
 /* these are for numbers */
 #define N_JSON_TO_CONFIG(x, y)   { if (root.containsKey(y)) { config.x = root[y]; } }
