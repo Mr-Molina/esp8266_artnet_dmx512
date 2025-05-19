@@ -15,7 +15,7 @@
 #error ArduinoJson version 7 or higher is required
 #endif
 
-/* these are for numbers */
+/* these are for numbers - DEPRECATED, use direct validation instead */
 #define N_JSON_TO_CONFIG(x, y)   { if (root.containsKey(y)) { config.x = root[y]; } }
 #define N_CONFIG_TO_JSON(x, y)   { root[y] = config.x; }
 #define N_KEYVAL_TO_CONFIG(x, y) { if (server.hasArg(y))    { String str = server.arg(y); config.x = str.toFloat(); } }
@@ -26,9 +26,9 @@
 #define S_KEYVAL_TO_CONFIG(x, y) { if (server.hasArg(y))    { String str = server.arg(y); strcpy(config.x, str.c_str()); } }
 
 struct Config {
-  unsigned int universe;
-  unsigned int channels;
-  unsigned int delay;
+  unsigned int universe;  // DMX universe (1-32767)
+  unsigned int channels;  // Number of DMX channels (1-512)
+  unsigned int delay;     // Delay in milliseconds (1-1000)
 };
 
 extern Config config;

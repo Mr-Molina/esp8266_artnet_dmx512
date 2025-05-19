@@ -48,10 +48,13 @@ bool defaultConfig()
 {
   Serial.println("defaultConfig");
 
-  config.universe = 1;
-  config.channels = 512;
-  config.delay = 25;
-  return true;
+  // Set default values within valid ranges
+  config.universe = 1;      // Default universe (valid range: 1-32767)
+  config.channels = 512;    // Default channels (valid range: 1-512)
+  config.delay = 25;        // Default delay in ms (valid range: 1-1000)
+  
+  // Save the default configuration to the file system
+  return saveConfig();
 }
 
 bool loadConfig()
@@ -69,6 +72,7 @@ bool loadConfig()
   if (size > 1024)
   {
     Serial.println("Config file size is too large");
+    configFile.close();
     return false;
   }
 
@@ -84,9 +88,21 @@ bool loadConfig()
     return false;
   }
 
-  N_JSON_TO_CONFIG(universe, "universe");
-  N_JSON_TO_CONFIG(channels, "channels");
-  N_JSON_TO_CONFIG(delay, "delay");
+  // Load and validate configuration values
+  if (root.containsKey("universe")) {
+    unsigned int value = root["universe"].as<unsigned int>();
+    config.universe = constrain(value, 1, 32767);
+  }
+  
+  if (root.containsKey("channels")) {
+    unsigned int value = root["channels"].as<unsigned int>();
+    config.channels = constrain(value, 1, 512);
+  }
+  
+  if (root.containsKey("delay")) {
+    unsigned int value = root["delay"].as<unsigned int>();
+    config.delay = constrain(value, 1, 1000);
+  }
 
   return true;
 }
@@ -96,9 +112,15 @@ bool saveConfig()
   Serial.println("saveConfig");
   JsonDocument root;
 
-  N_CONFIG_TO_JSON(universe, "universe");
-  N_CONFIG_TO_JSON(channels, "channels");
-  N_CONFIG_TO_JSON(delay, "delay");
+  // Ensure values are within valid ranges before saving
+  root["universe"] = constrain(config.universe, 1, 32767);
+  root["channels"] = constrain(config.channels, 1, 512);
+  root["delay"] = constrain(config.delay, 1, 1000);
+
+  // Make sure the values in memory match what we're saving
+  config.universe = root["universe"].as<unsigned int>();
+  config.channels = root["channels"].as<unsigned int>();
+  config.delay = root["delay"].as<unsigned int>();
 
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile)
@@ -106,13 +128,20 @@ bool saveConfig()
     Serial.println("Failed to open config file for writing");
     return false;
   }
-  else
-  {
-    Serial.println("Writing to config file");
-    serializeJson(root, configFile);
-    configFile.close();
-    return true;
+  
+  Serial.println("Writing to config file");
+  size_t bytesWritten = serializeJson(root, configFile);
+  configFile.close();
+  
+  if (bytesWritten == 0) {
+    Serial.println("Failed to write to config file");
+    return false;
   }
+  
+  Serial.print("Config saved successfully (");
+  Serial.print(bytesWritten);
+  Serial.println(" bytes)");
+  return true;
 }
 
 void printRequest()
@@ -265,12 +294,29 @@ void handleJSON()
   Serial.println("handleJSON");
   printRequest();
 
+  bool configChanged = false;
+
   if (server.hasArg("universe") || server.hasArg("channels") || server.hasArg("delay"))
   {
     // the body is key1=val1&key2=val2&key3=val3 and the ESP8266Webserver has already parsed it
-    N_KEYVAL_TO_CONFIG(universe, "universe");
-    N_KEYVAL_TO_CONFIG(channels, "channels");
-    N_KEYVAL_TO_CONFIG(delay, "delay");
+    if (server.hasArg("universe")) {
+      unsigned int value = server.arg("universe").toInt();
+      config.universe = constrain(value, 1, 32767);
+      configChanged = true;
+    }
+    
+    if (server.hasArg("channels")) {
+      unsigned int value = server.arg("channels").toInt();
+      config.channels = constrain(value, 1, 512);
+      configChanged = true;
+    }
+    
+    if (server.hasArg("delay")) {
+      unsigned int value = server.arg("delay").toInt();
+      config.delay = constrain(value, 1, 1000);
+      configChanged = true;
+    }
+    
     handleStaticFile("/reload_success.html");
   }
   else if (server.hasArg("plain"))
@@ -280,12 +326,31 @@ void handleJSON()
     DeserializationError error = deserializeJson(root, server.arg("plain").c_str(), server.arg("plain").length());
     if (error)
     {
+      Serial.print("JSON parsing failed: ");
+      Serial.println(error.c_str());
       handleStaticFile("/reload_failure.html");
       return;
     }
-    N_JSON_TO_CONFIG(universe, "universe");
-    N_JSON_TO_CONFIG(channels, "channels");
-    N_JSON_TO_CONFIG(delay, "delay");
+    
+    // Load and validate configuration values
+    if (root.containsKey("universe")) {
+      unsigned int value = root["universe"].as<unsigned int>();
+      config.universe = constrain(value, 1, 32767);
+      configChanged = true;
+    }
+    
+    if (root.containsKey("channels")) {
+      unsigned int value = root["channels"].as<unsigned int>();
+      config.channels = constrain(value, 1, 512);
+      configChanged = true;
+    }
+    
+    if (root.containsKey("delay")) {
+      unsigned int value = root["delay"].as<unsigned int>();
+      config.delay = constrain(value, 1, 1000);
+      configChanged = true;
+    }
+    
     handleStaticFile("/reload_success.html");
   }
   else
@@ -294,5 +359,8 @@ void handleJSON()
     return; // do not save the configuration
   }
 
-  saveConfig();
+  // Only save if configuration actually changed
+  if (configChanged) {
+    saveConfig();
+  }
 }
