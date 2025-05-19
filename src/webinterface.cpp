@@ -9,8 +9,97 @@ constexpr uint16_t DELAY_MAX = 1000;
 
 Config config;
 extern ESP8266WebServer server;
+extern unsigned long tic_web;
+extern float fps;
+extern uint32_t packetCounter;
 
 /***************************************************************************/
+
+void setupWebServer(ESP8266WebServer& server) {
+  // This serves all URIs that can be resolved to a file on the LittleFS filesystem
+  server.onNotFound(handleNotFound);
+
+  server.on("/", HTTP_GET, []() {
+    tic_web = millis();
+    handleRedirect("/index.html");
+  });
+
+  server.on("/defaults", HTTP_GET, []() {
+    tic_web = millis();
+    Serial.println("handleDefaults");
+    handleStaticFile("/reload_success.html");
+    defaultConfig();
+    saveConfig();
+    server.close();
+    server.stop();
+    ESP.restart();
+  });
+
+  server.on("/reconnect", HTTP_GET, []() {
+    tic_web = millis();
+    Serial.println("handleReconnect");
+    handleStaticFile("/reload_success.html");
+    
+    server.close();
+    server.stop();
+    delay(5000);
+    WiFiManager wifiManager;
+    wifiManager.resetSettings();
+    wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
+    wifiManager.startConfigPortal("ARTNET");
+    Serial.println("connected");
+    server.begin();
+  });
+
+  server.on("/restart", HTTP_GET, []() {
+    tic_web = millis();
+    Serial.println("handleRestart");
+    handleStaticFile("/reload_success.html");
+    server.close();
+    server.stop();
+    LittleFS.end();
+    delay(5000);
+    ESP.restart();
+  });
+
+  server.on("/dir", HTTP_GET, []() {
+    tic_web = millis();
+    handleDirList();
+  });
+
+  server.on("/json", HTTP_PUT, []() {
+    tic_web = millis();
+    handleJSON();
+  });
+
+  server.on("/json", HTTP_POST, []() {
+    tic_web = millis();
+    handleJSON();
+  });
+
+  server.on("/json", HTTP_GET, []() {
+    tic_web = millis();
+    JsonDocument root;
+    N_CONFIG_TO_JSON(universe, "universe");
+    N_CONFIG_TO_JSON(channels, "channels");
+    N_CONFIG_TO_JSON(delay, "delay");
+    root["version"] = __DATE__ " / " __TIME__;
+    root["uptime"]  = long(millis() / 1000);
+    root["packets"] = packetCounter;
+    root["fps"]     = fps;
+    String str;
+    serializeJson(root, str);
+    server.setContentLength(str.length());
+    server.send(200, "application/json", str);
+  });
+
+  server.on("/update", HTTP_GET, []() {
+    tic_web = millis();
+    handleStaticFile("/update.html");
+  });
+
+  server.on("/update", HTTP_POST, handleUpdate1, handleUpdate2);
+}
 
 static String getContentType(const String &path)
 {

@@ -6,7 +6,7 @@
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
-#include <cstdint> // Add for fixed-width types
+#include <cstdint>
 
 #ifndef ARDUINOJSON_VERSION
 #error ArduinoJson version 7 not found, please include ArduinoJson.h in your .ino file
@@ -67,10 +67,15 @@ struct Config
 
 extern Config config;
 
+// Setup web server routes
+void setupWebServer(ESP8266WebServer& server);
+
+// Configuration functions
 bool defaultConfig(void);
 bool loadConfig(void);
 bool saveConfig(void);
 
+// Web request handlers
 void handleUpdate1(void);
 void handleUpdate2(void);
 void handleDirList(void);
