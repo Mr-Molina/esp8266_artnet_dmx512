@@ -20,6 +20,7 @@
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include <ArtnetWifi.h>  // https://github.com/rstephan/ArtnetWifi
 #include <ArduinoJson.h>
+#include <cstdint> // Add for fixed-width types
 
 #include "rgb_led.h"
 #include "webinterface.h"
@@ -91,7 +92,7 @@
 #include <I2S.h>
 #include <i2s_reg.h>
 #define I2S_PIN 3
-#define DMX_CHANNELS 512
+constexpr uint16_t DMX_CHANNELS = 512;
 
 // See comments below
 // #define I2S_SUPER_SAFE
@@ -139,7 +140,7 @@ WiFiManager wifiManager;
 
 // keep track of the timing of the function calls
 long tic_loop = 0, tic_fps = 0, tic_packet = 0, tic_web = 0;
-unsigned long packetCounter = 0, frameCounter = 0, last_packet_received = 0;
+uint32_t packetCounter = 0, frameCounter = 0, last_packet_received = 0;
 float fps = 0;
 
 // Global buffer with one Artnet universe
@@ -149,7 +150,7 @@ struct
   uint16_t length;
   uint8_t sequence;
 #ifdef ENABLE_UART
-  uint8_t uart_data[512];
+  uint8_t uart_data[DMX_CHANNELS];
 #endif
 #ifdef ENABLE_I2S
   i2s_packet i2s_data;
@@ -243,9 +244,9 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
 #endif
 
 #ifdef ENABLE_UART
-    if (length <= 512)
+    if (length <= DMX_CHANNELS)
       global.length = length;
-    for (int i = 0; i < global.length; i++)
+    for (uint16_t i = 0; i < global.length; i++)
     {
       global.uart_data[i] = data[i];
     }
@@ -276,10 +277,10 @@ void setup()
 
   global.universe = 0;
   global.sequence = 0;
-  global.length = 512;
+  global.length = DMX_CHANNELS;
 
 #ifdef ENABLE_UART
-  for (int i = 0; i < 512; i++)
+  for (uint16_t i = 0; i < DMX_CHANNELS; i++)
     global.uart_data[i] = 0;
 #endif
 

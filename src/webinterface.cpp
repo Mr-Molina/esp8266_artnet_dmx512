@@ -1,5 +1,12 @@
 #include "webinterface.h"
 
+constexpr uint16_t UNIVERSE_MIN = 1;
+constexpr uint16_t UNIVERSE_MAX = 32767;
+constexpr uint16_t CHANNELS_MIN = 1;
+constexpr uint16_t CHANNELS_MAX = 512;
+constexpr uint16_t DELAY_MIN = 1;
+constexpr uint16_t DELAY_MAX = 1000;
+
 Config config;
 extern ESP8266WebServer server;
 
@@ -48,12 +55,10 @@ bool defaultConfig()
 {
   Serial.println("defaultConfig");
 
-  // Set default values within valid ranges
-  config.universe = 1;      // Default universe (valid range: 1-32767)
-  config.channels = 512;    // Default channels (valid range: 1-512)
-  config.delay = 25;        // Default delay in ms (valid range: 1-1000)
-  
-  // Save the default configuration to the file system
+  config.universe = UNIVERSE_MIN;
+  config.channels = CHANNELS_MAX;
+  config.delay = 25;
+
   return saveConfig();
 }
 
@@ -88,20 +93,22 @@ bool loadConfig()
     return false;
   }
 
-  // Load and validate configuration values
-  if (root.containsKey("universe")) {
-    unsigned int value = root["universe"].as<unsigned int>();
-    config.universe = constrain(value, 1, 32767);
+  if (root.containsKey("universe"))
+  {
+    uint16_t value = root["universe"].as<uint16_t>();
+    config.universe = constrain(value, UNIVERSE_MIN, UNIVERSE_MAX);
   }
-  
-  if (root.containsKey("channels")) {
-    unsigned int value = root["channels"].as<unsigned int>();
-    config.channels = constrain(value, 1, 512);
+
+  if (root.containsKey("channels"))
+  {
+    uint16_t value = root["channels"].as<uint16_t>();
+    config.channels = constrain(value, CHANNELS_MIN, CHANNELS_MAX);
   }
-  
-  if (root.containsKey("delay")) {
-    unsigned int value = root["delay"].as<unsigned int>();
-    config.delay = constrain(value, 1, 1000);
+
+  if (root.containsKey("delay"))
+  {
+    uint16_t value = root["delay"].as<uint16_t>();
+    config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
   }
 
   return true;
@@ -112,15 +119,13 @@ bool saveConfig()
   Serial.println("saveConfig");
   JsonDocument root;
 
-  // Ensure values are within valid ranges before saving
-  root["universe"] = constrain(config.universe, 1, 32767);
-  root["channels"] = constrain(config.channels, 1, 512);
-  root["delay"] = constrain(config.delay, 1, 1000);
+  root["universe"] = constrain(config.universe, UNIVERSE_MIN, UNIVERSE_MAX);
+  root["channels"] = constrain(config.channels, CHANNELS_MIN, CHANNELS_MAX);
+  root["delay"] = constrain(config.delay, DELAY_MIN, DELAY_MAX);
 
-  // Make sure the values in memory match what we're saving
-  config.universe = root["universe"].as<unsigned int>();
-  config.channels = root["channels"].as<unsigned int>();
-  config.delay = root["delay"].as<unsigned int>();
+  config.universe = root["universe"].as<uint16_t>();
+  config.channels = root["channels"].as<uint16_t>();
+  config.delay = root["delay"].as<uint16_t>();
 
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile)
@@ -128,16 +133,17 @@ bool saveConfig()
     Serial.println("Failed to open config file for writing");
     return false;
   }
-  
+
   Serial.println("Writing to config file");
   size_t bytesWritten = serializeJson(root, configFile);
   configFile.close();
-  
-  if (bytesWritten == 0) {
+
+  if (bytesWritten == 0)
+  {
     Serial.println("Failed to write to config file");
     return false;
   }
-  
+
   Serial.print("Config saved successfully (");
   Serial.print(bytesWritten);
   Serial.println(" bytes)");
@@ -299,24 +305,27 @@ void handleJSON()
   if (server.hasArg("universe") || server.hasArg("channels") || server.hasArg("delay"))
   {
     // the body is key1=val1&key2=val2&key3=val3 and the ESP8266Webserver has already parsed it
-    if (server.hasArg("universe")) {
+    if (server.hasArg("universe"))
+    {
       unsigned int value = server.arg("universe").toInt();
       config.universe = constrain(value, 1, 32767);
       configChanged = true;
     }
-    
-    if (server.hasArg("channels")) {
+
+    if (server.hasArg("channels"))
+    {
       unsigned int value = server.arg("channels").toInt();
       config.channels = constrain(value, 1, 512);
       configChanged = true;
     }
-    
-    if (server.hasArg("delay")) {
+
+    if (server.hasArg("delay"))
+    {
       unsigned int value = server.arg("delay").toInt();
       config.delay = constrain(value, 1, 1000);
       configChanged = true;
     }
-    
+
     handleStaticFile("/reload_success.html");
   }
   else if (server.hasArg("plain"))
@@ -331,26 +340,29 @@ void handleJSON()
       handleStaticFile("/reload_failure.html");
       return;
     }
-    
+
     // Load and validate configuration values
-    if (root.containsKey("universe")) {
+    if (root.containsKey("universe"))
+    {
       unsigned int value = root["universe"].as<unsigned int>();
       config.universe = constrain(value, 1, 32767);
       configChanged = true;
     }
-    
-    if (root.containsKey("channels")) {
+
+    if (root.containsKey("channels"))
+    {
       unsigned int value = root["channels"].as<unsigned int>();
       config.channels = constrain(value, 1, 512);
       configChanged = true;
     }
-    
-    if (root.containsKey("delay")) {
+
+    if (root.containsKey("delay"))
+    {
       unsigned int value = root["delay"].as<unsigned int>();
       config.delay = constrain(value, 1, 1000);
       configChanged = true;
     }
-    
+
     handleStaticFile("/reload_success.html");
   }
   else
@@ -360,7 +372,8 @@ void handleJSON()
   }
 
   // Only save if configuration actually changed
-  if (configChanged) {
+  if (configChanged)
+  {
     saveConfig();
   }
 }
