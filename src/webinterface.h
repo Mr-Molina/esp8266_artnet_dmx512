@@ -8,12 +8,12 @@
 #include <LittleFS.h>
 
 #ifndef ARDUINOJSON_VERSION
-#error ArduinoJson version 6 not found, please include ArduinoJson.h in your .ino file
+#error ArduinoJson version 7 not found, please include ArduinoJson.h in your .ino file
 #endif
 
-//#if ARDUINOJSON_VERSION_MAJOR != 6
-//#error ArduinoJson version 6 is required
-//#endif
+#if ARDUINOJSON_VERSION_MAJOR < 7
+#error ArduinoJson version 7 or higher is required
+#endif
 
 /* these are for numbers */
 #define N_JSON_TO_CONFIG(x, y)   { if (root.containsKey(y)) { config.x = root[y]; } }
@@ -22,7 +22,7 @@
 
 /* these are for strings */
 #define S_JSON_TO_CONFIG(x, y)   { if (root.containsKey(y)) { strcpy(config.x, root[y]); } }
-#define S_CONFIG_TO_JSON(x, y)   { root.set(y, config.x); }
+#define S_CONFIG_TO_JSON(x, y)   { root[y] = config.x; }
 #define S_KEYVAL_TO_CONFIG(x, y) { if (server.hasArg(y))    { String str = server.arg(y); strcpy(config.x, str.c_str()); } }
 
 struct Config {

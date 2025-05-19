@@ -55,8 +55,7 @@ bool loadConfig() {
   configFile.readBytes(buf.get(), size);
   configFile.close();
 
-  StaticJsonDocument<300> jsonBuffer;
-  DynamicJsonDocument root(1024);
+  JsonDocument root;
   DeserializationError error = deserializeJson(root, buf.get());
   if (error) {
     Serial.println("Failed to parse config file");
@@ -72,7 +71,7 @@ bool loadConfig() {
 
 bool saveConfig() {
   Serial.println("saveConfig");
-  DynamicJsonDocument root(300);
+  JsonDocument root;
 
   N_CONFIG_TO_JSON(universe, "universe");
   N_CONFIG_TO_JSON(channels, "channels");
@@ -223,7 +222,7 @@ void handleJSON() {
   }
   else if (server.hasArg("plain")) {
     // parse the body as JSON object
-    DynamicJsonDocument root(300);
+    JsonDocument root;
     DeserializationError error = deserializeJson(root, server.arg("plain"));
     if (error) {
       handleStaticFile("/reload_failure.html");

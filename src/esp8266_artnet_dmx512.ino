@@ -302,7 +302,7 @@ void setup() {
   //memset(&data, 0b01010101, sizeof(data));
 #endif
 
-  // The SPIFFS file system contains the html and javascript code for the web interface
+  // The LittleFS file system contains the html and javascript code for the web interface
   LittleFS.begin();
 
   if (loadConfig()) {
@@ -379,7 +379,7 @@ void setup() {
 
 #ifdef ENABLE_WEBINTERFACE
 
-  // this serves all URIs that can be resolved to a file on the SPIFFS filesystem
+  // this serves all URIs that can be resolved to a file on the LittleFS filesystem
   server.onNotFound(handleNotFound);
 
   server.on("/", HTTP_GET, []() {
@@ -445,7 +445,7 @@ void setup() {
 
   server.on("/json", HTTP_GET, [] {
     tic_web = millis();
-    DynamicJsonDocument root(300);
+    JsonDocument root;
     N_CONFIG_TO_JSON(universe, "universe");
     N_CONFIG_TO_JSON(channels, "channels");
     N_CONFIG_TO_JSON(delay, "delay");
