@@ -448,27 +448,14 @@ void loop()
     {
       lastDmxSend = currentMillis;
 
-      // Only send if new data is ready
-      bool sendNow = false;
-      noInterrupts();
-      if (dmxBufferReady) {
-        dmxBufferReady = false;
-        sendNow = true;
-      }
-      interrupts();
+      // Always send the last known DMX buffer, even if no new Art-Net data
+      uint8_t localBuffer[DMX_CHANNELS];
+      memset(localBuffer, 0, DMX_CHANNELS); // Ensure unused channels are zeroed
 
-      if (sendNow) {
-        // Copy from back buffer to local buffer for sending
-        uint8_t localBuffer[DMX_CHANNELS];
-        memset(localBuffer, 0, DMX_CHANNELS); // Ensure unused channels are zeroed
-        
-        // Validate config.channels to prevent buffer overruns
-        uint16_t safeChannels = constrain(config.channels, 1, DMX_CHANNELS);
-        memcpy(localBuffer, dmxDataBack, safeChannels); // Only copy the number of active channels
+      uint16_t safeChannels = constrain(config.channels, 1, DMX_CHANNELS);
+      memcpy(localBuffer, dmxDataBack, safeChannels);
 
-        // Send DMX data using the selected output method
-        dmxOutput->sendDmxData(localBuffer, safeChannels, safeChannels);
-      }
+      dmxOutput->sendDmxData(localBuffer, safeChannels, safeChannels);
     }
   }
 }
