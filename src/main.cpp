@@ -77,7 +77,7 @@ bool DEBUG_DMX = true;     // Debug messages for DMX data
 #define ENABLE_MDNS
 
 // Enable test code for moving head
-#define WITH_TEST_CODE
+//#define WITH_TEST_CODE
 
 // Constants
 const char *host = "ARTNET";
@@ -110,36 +110,25 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
   unsigned long packetInterval = now - last_packet_received;
   last_packet_received = now;
 
-  if (packetInterval > 1000)
-  {
-    if (DEBUG_DMX) Serial.println("Received DMX data after pause");
-  }
-
   // Update ArtNet statistics
   artnetManager->updateStatistics();
 
-  // Art-Net universe numbering can be confusing:
-  // - In Art-Net, universes are often 0-based (0-255)
-  // - In user interfaces, they're often shown as 1-based (1-256)
-  // - Some software uses different offsets or subnets
+  // Static variables for throttling debug output
+  static unsigned long lastDebugOutput = 0;
+  static const unsigned long DEBUG_INTERVAL = 2000; // Only print debug info every 2 seconds
   
-  // Print all universes in debug mode to help diagnose
-  if (DEBUG_DMX) {
-    Serial.print("Received Art-Net universe: ");
-    Serial.print(universe);
-    Serial.print(", Configured universe: ");
-    Serial.println(config.universe);
-  }
-
   // Process only if universe matches configuration
-  // Note: You might need to adjust by +1 or -1 depending on your Art-Net source
   if (universe == config.universe)
   {
     // Copy DMX data to our buffer
     uint16_t channelsToProcess = min(length, (uint16_t)DMX_CHANNELS);
     memcpy(dmxData, data, channelsToProcess);
     
-    if (DEBUG_DMX) {
+    // Throttled debug output
+    if (DEBUG_DMX && (now - lastDebugOutput > DEBUG_INTERVAL)) {
+      lastDebugOutput = now;
+      
+      Serial.println("\n===== DMX DATA UPDATE =====");
       Serial.print("DMX Universe: ");
       Serial.print(universe);
       Serial.print(", Length: ");
@@ -151,7 +140,7 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
       Serial.println("DMX Data (first 16 channels):");
       for (int i = 0; i < min(16, (int)channelsToProcess); i++) {
         Serial.print("Ch");
-        Serial.print(i);
+        Serial.print(i + 1); // Adjust channel number to start from 1 instead of 0
         Serial.print(": ");
         Serial.print(data[i]);
         Serial.print(" (0x");
@@ -180,15 +169,12 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
       Serial.print(WiFi.RSSI());
       Serial.println(" dBm");
       
-      Serial.println("----------------------------");
+      Serial.println("===========================");
     }
-
-    // Store universe and sequence for reference
-    // (These could be moved to the ArtnetManager class)
-    // global.universe = universe;
-    // global.sequence = sequence;
   }
-  else if (DEBUG_DMX) {
+  else if (DEBUG_DMX && (now - lastDebugOutput > DEBUG_INTERVAL)) {
+    lastDebugOutput = now;
+    
     Serial.print("Ignored DMX Universe: ");
     Serial.print(universe);
     Serial.print(" (configured for universe: ");
@@ -219,9 +205,9 @@ void testCode()
 
   // Set DMX values for test pattern
   dmxData[0] = 0;    // Start code (always 0)
-  dmxData[1] = 255;  // Set channel 1 to full brightness
-  dmxData[2] = x;    // Animate channel 2
-  dmxData[3] = 255 - x; // Animate channel 3 inversely
+  dmxData[1] = 255;  // Set channel 1 to full brightness (dmxData[1] is actually DMX channel 1)
+  dmxData[2] = x;    // Animate channel 2 (dmxData[2] is actually DMX channel 2)
+  dmxData[3] = 255 - x; // Animate channel 3 inversely (dmxData[3] is actually DMX channel 3)
   dmxData[4] = 0;   
   dmxData[5] = 30;  
   dmxData[6] = 0;   
@@ -232,7 +218,7 @@ void testCode()
     Serial.println("Test pattern generated");
     Serial.print("Position value: ");
     Serial.println(x);
-    Serial.println("DMX Test Data: Ch1=255, Ch2=" + String(x) + ", Ch3=" + String(255-x));
+    Serial.println("DMX Test Data: Ch1=255, Ch2=" + String(x) + ", Ch3=" + String(255-x) + " (using 1-based channel numbering)");
   }
 }
 #endif

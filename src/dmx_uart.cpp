@@ -1,8 +1,8 @@
 #include "dmx_uart.h"
 
 // Constructor: Sets up a new DmxUart with all counters at zero
-DmxUart::DmxUart() : packetCounter(0), lastPacketTime(0), useSerialBreak(true) {
-  // We start with the serial break method by default
+DmxUart::DmxUart() : packetCounter(0), lastPacketTime(0) {
+  // Initialize SoftwareSerial for DMX output
   dmxSerial = new SoftwareSerial(255, DMX_TX_PIN); // RX pin not used (255), TX on GPIO14
 }
 
@@ -41,14 +41,7 @@ void DmxUart::sendSerialBreak() {
   delayMicroseconds(DMX_MAB);    // Hold high for Mark After Break time
 }
 
-// Send the DMX break signal using a low-level hardware method
-void DmxUart::sendLowLevelBreak() {
-  // For software serial, we'll use the same method as sendSerialBreak
-  digitalWrite(DMX_TX_PIN, LOW);
-  delayMicroseconds(DMX_BREAK);
-  digitalWrite(DMX_TX_PIN, HIGH);
-  delayMicroseconds(DMX_MAB);
-}
+// No longer needed - removed unused method
 
 // Send DMX lighting control data over UART to the lights
 void DmxUart::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
@@ -58,6 +51,13 @@ void DmxUart::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) 
   // Step 2: Send the start byte (always zero for standard DMX)
   dmxSerial->write(0);
   
+  // Calculate the time for one bit at 250,000 baud (in microseconds)
+  // 1 / 250,000 = 0.000004 seconds = 4 microseconds per bit
+  const unsigned int bitTime = 4; // microseconds
+  
+  // Add a small delay to emulate the second stop bit for the start byte
+  delayMicroseconds(bitTime);
+  
   // Step 3: Send the actual DMX data for each channel
   // First, figure out how many channels to send (the smaller of length or maxChannels)
   uint16_t channelsToSend = min(length, maxChannels);
@@ -65,6 +65,10 @@ void DmxUart::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) 
   // Then send each channel's value one by one
   for (uint16_t i = 0; i < channelsToSend; i++) {
     dmxSerial->write(data[i]);
+    
+    // Add a small delay after each byte to emulate the second stop bit
+    // SoftwareSerial uses 1 stop bit by default, so we add time for 1 more bit
+    delayMicroseconds(bitTime);
   }
   
   // Step 4: Update our statistics

@@ -16,9 +16,8 @@
 
 // DMX timing requirements from the official DMX512 standard (E1.11)
 // These are measured in microseconds (millionths of a second)
-#define DMX_BREAK 92   // The "break" signal must be at least 92 microseconds
+#define DMX_BREAK 176  // The "break" signal must be at least 92 microseconds, using 176 for reliability
 #define DMX_MAB 12     // The "Mark After Break" must be at least 12 microseconds
-#define SEROUT_UART 1  // We're using UART #1 for our serial output
 
 // Define the pin to use for DMX output
 #define DMX_TX_PIN 14  // Using GPIO14 for DMX output
@@ -54,17 +53,12 @@ private:
   // A "break" is a special signal that tells the lights "new data is coming"
   void sendSerialBreak();
   
-  // Send the DMX break signal using a low-level hardware method
-  // This is an alternative way to send the break signal
-  void sendLowLevelBreak();
-  
   // Software serial instance for DMX output on custom pin
   SoftwareSerial* dmxSerial;
   
   // Variables to track statistics
   unsigned long packetCounter;   // How many packets we've sent
   unsigned long lastPacketTime;  // When we last sent a packet
-  bool useSerialBreak;           // Which break method to use
 };
 
 #endif // _DMX_UART_H_

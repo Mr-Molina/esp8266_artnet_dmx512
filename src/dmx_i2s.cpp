@@ -109,10 +109,16 @@ void DmxI2s::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
   // Step 1: Determine how many channels to send
   uint16_t channelsToSend = min(length, maxChannels);
   
-  // Step 2: Allocate memory for DMX data if needed
-  if (packet.dmx_bytes == nullptr) {
+  // Step 2: Allocate or reallocate memory for DMX data if needed
+  static uint16_t lastAllocatedSize = 0;
+  if (packet.dmx_bytes == nullptr || channelsToSend + 1 > lastAllocatedSize) {
+    // Free previous allocation if it exists
+    if (packet.dmx_bytes != nullptr) {
+      delete[] packet.dmx_bytes;
+    }
     // +1 for the start code (always channel 0 in DMX)
     packet.dmx_bytes = new uint16_t[channelsToSend + 1];
+    lastAllocatedSize = channelsToSend + 1;
   }
   
   // Step 3: Set the start code (always 0 for standard DMX)
