@@ -16,8 +16,8 @@
 
 // DMX timing requirements from the official DMX512 standard (E1.11)
 // These are measured in microseconds (millionths of a second)
-#define DMX_BREAK 176  // The "break" signal must be at least 92 microseconds, using 176 for reliability
-#define DMX_MAB 12     // The "Mark After Break" must be at least 12 microseconds
+#define DMX_BREAK 200  // The "break" signal must be at least 92 microseconds, using 200 for reliability
+#define DMX_MAB 20     // The "Mark After Break" must be at least 12 microseconds
 
 // Define the pin to use for DMX output
 #define DMX_TX_PIN 14  // Using GPIO14 for DMX output

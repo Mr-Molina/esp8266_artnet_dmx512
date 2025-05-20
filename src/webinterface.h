@@ -86,7 +86,7 @@ extern bool DEBUG_DMX;
 struct Config
 {
   uint16_t universe; // DMX universe number (1-32767)
-  uint16_t channels; // Number of DMX channels to use (1-512)
+  uint16_t channels; // Total number of DMX channels to transmit (1-512), always starting from channel 1
   uint16_t delay;    // Delay between DMX packets in milliseconds (1-1000)
 };
 

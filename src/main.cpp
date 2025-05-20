@@ -45,7 +45,7 @@
 
 // Debug flags - set to true to enable debug messages
 bool DEBUG_WEB = false;    // Debug messages for web interface
-bool DEBUG_DMX = true;     // Debug messages for DMX data
+bool DEBUG_DMX = false;     // Debug messages for DMX data
 
 // Uncomment one of these to select the DMX output method
 #define ENABLE_UART
@@ -122,8 +122,9 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
   // Process only if universe matches configuration
   if (universe == config.universe)
   {
-    uint16_t channelsToProcess = min(length, (uint16_t)DMX_CHANNELS);
-    memcpy(dmxDataFront, data, channelsToProcess);
+    uint16_t channelsToProcess = min(length, (uint16_t)config.channels);
+    memset(dmxDataFront, 0, DMX_CHANNELS); // Zero all 512 channels
+    memcpy(dmxDataFront, data, channelsToProcess); // Copy only the number of Art-Net channels
 
     // Swap buffers atomically
     noInterrupts();
@@ -213,15 +214,24 @@ void testCode()
   }
 
   // Set DMX values for test pattern
-  dmxData[0] = 0;    // Start code (always 0)
-  dmxData[1] = 255;  // Set channel 1 to full brightness (dmxData[1] is actually DMX channel 1)
-  dmxData[2] = x;    // Animate channel 2 (dmxData[2] is actually DMX channel 2)
-  dmxData[3] = 255 - x; // Animate channel 3 inversely (dmxData[3] is actually DMX channel 3)
+  uint8_t* dmxData = dmxDataFront; // Use the front buffer for test data
+  memset(dmxData, 0, DMX_CHANNELS); // Clear all channels
+  dmxData[1] = 255;  // Set channel 1 to full brightness
+  dmxData[2] = x;    // Animate channel 2
+  dmxData[3] = 255 - x; // Animate channel 3 inversely
   dmxData[4] = 0;   
   dmxData[5] = 30;  
   dmxData[6] = 0;   
   dmxData[7] = 0;   
   dmxData[8] = 150; 
+  
+  // Swap buffers atomically
+  noInterrupts();
+  uint8_t* tmp = dmxDataFront;
+  dmxDataFront = dmxDataBack;
+  dmxDataBack = tmp;
+  dmxBufferReady = true;
+  interrupts();
   
   if (DEBUG_DMX) {
     Serial.println("Test pattern generated");
@@ -312,10 +322,10 @@ void setup()
 #ifdef ENABLE_I2S
 #ifdef I2S_SUPER_SAFE
   dmxOutput = new DmxI2s(true);
-  Serial.println("Using super safe I2S timing");
+  Serial.println("Using super safe I2S timing on pin " + String(I2S_PIN));
 #else
   dmxOutput = new DmxI2s(false);
-  Serial.println("Using normal I2S timing");
+  Serial.println("Using normal I2S timing on pin " + String(I2S_PIN));
 #endif
 #endif
 
@@ -339,24 +349,26 @@ void setup()
   Serial.println("Setup done");
   
   // Print DMX configuration
-  Serial.println("DMX debugging enabled");
-  
-#ifdef ENABLE_UART
-  Serial.print("DMX UART pin: ");
-  Serial.println(DMX_TX_PIN);
-#endif
+  if (DEBUG_DMX) {
+    Serial.println("DMX debugging enabled");
+    
+  #ifdef ENABLE_UART
+    Serial.print("DMX UART pin: ");
+    Serial.println(DMX_TX_PIN);
+  #endif
 
-#ifdef ENABLE_I2S
-  Serial.print("DMX I2S pin: ");
-  Serial.println(I2S_PIN);
-#endif
+  #ifdef ENABLE_I2S
+    Serial.print("DMX I2S pin: ");
+    Serial.println(I2S_PIN);
+  #endif
 
-  Serial.print("DMX Universe: ");
-  Serial.println(config.universe);
-  Serial.print("DMX Channels: ");
-  Serial.println(config.channels);
-  Serial.print("DMX Delay: ");
-  Serial.println(config.delay);
+    Serial.print("DMX Universe: ");
+    Serial.println(config.universe);
+    Serial.print("DMX Channels: ");
+    Serial.println(config.channels);
+    Serial.print("DMX Delay: ");
+    Serial.println(config.delay);
+  }
   
   // Print hardware connection instructions
   Serial.println("\nHARDWARE CONNECTION:");
@@ -421,10 +433,20 @@ void loop()
 
     // Send DMX data at configured rate
     static unsigned long lastDmxSend = 0;
+    static unsigned long lastWatchdogReset = 0;
     const unsigned long DMX_FRAME_PERIOD = 23; // ~44Hz (1000/44 ≈ 23ms)
-    if ((millis() - lastDmxSend) >= DMX_FRAME_PERIOD)
+    const unsigned long WATCHDOG_PERIOD = 500; // Reset watchdog every 500ms
+    
+    // Reset watchdog timer periodically to prevent crashes
+    unsigned long currentMillis = millis();
+    if ((currentMillis - lastWatchdogReset) >= WATCHDOG_PERIOD) {
+      ESP.wdtFeed();
+      lastWatchdogReset = currentMillis;
+    }
+    
+    if ((currentMillis - lastDmxSend) >= DMX_FRAME_PERIOD)
     {
-      lastDmxSend = millis();
+      lastDmxSend = currentMillis;
 
       // Only send if new data is ready
       bool sendNow = false;
@@ -439,10 +461,13 @@ void loop()
         // Copy from back buffer to local buffer for sending
         uint8_t localBuffer[DMX_CHANNELS];
         memset(localBuffer, 0, DMX_CHANNELS); // Ensure unused channels are zeroed
-        memcpy(localBuffer, dmxDataBack, config.channels); // Only copy the number of active channels
+        
+        // Validate config.channels to prevent buffer overruns
+        uint16_t safeChannels = constrain(config.channels, 1, DMX_CHANNELS);
+        memcpy(localBuffer, dmxDataBack, safeChannels); // Only copy the number of active channels
 
         // Send DMX data using the selected output method
-        dmxOutput->sendDmxData(localBuffer, config.channels, config.channels);
+        dmxOutput->sendDmxData(localBuffer, safeChannels, safeChannels);
       }
     }
   }

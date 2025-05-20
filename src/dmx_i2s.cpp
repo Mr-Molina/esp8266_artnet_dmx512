@@ -86,6 +86,16 @@ void DmxI2s::begin() {
   // We need 250,000 baud for DMX, but I2S sends 32 bits at a time
   // So we need 250,000 ÷ 32 = 7,812 Hz sample rate
   i2s_set_rate(7812);
+  
+  // Print initialization message
+  extern bool DEBUG_DMX;
+  if (DEBUG_DMX) {
+    Serial.print("DMX I2S initialized on pin ");
+    Serial.println(I2S_PIN);
+    if (superSafeTiming) {
+      Serial.println("Using super safe timing mode");
+    }
+  }
 }
 
 // Flip the order of bits in a byte for I2S transmission
@@ -106,8 +116,29 @@ uint8_t DmxI2s::flipByte(uint8_t c) {
 
 // Send DMX lighting control data over I2S to the lights
 void DmxI2s::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
+  // Validate input parameters to prevent crashes
+  if (!data || length == 0 || maxChannels == 0) {
+    return;
+  }
+  
   // Step 1: Determine how many channels to send
   uint16_t channelsToSend = min(length, maxChannels);
+  
+  // Debug output
+  extern bool DEBUG_DMX;
+  if (DEBUG_DMX) {
+    Serial.print("I2S DMX OUT: ");
+    Serial.print(channelsToSend);
+    Serial.print(" channels, first values: ");
+    for (uint16_t i = 0; i < min((uint16_t)5, channelsToSend); i++) {
+      Serial.print("Ch");
+      Serial.print(i + 1);
+      Serial.print("=");
+      Serial.print(data[i]);
+      Serial.print(" ");
+    }
+    Serial.println();
+  }
   
   // Step 2: Allocate or reallocate memory for DMX data if needed
   static uint16_t lastAllocatedSize = 0;
@@ -115,9 +146,18 @@ void DmxI2s::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
     // Free previous allocation if it exists
     if (packet.dmx_bytes != nullptr) {
       delete[] packet.dmx_bytes;
+      packet.dmx_bytes = nullptr;
     }
+    
     // +1 for the start code (always channel 0 in DMX)
+    // Check for memory allocation failure
     packet.dmx_bytes = new uint16_t[channelsToSend + 1];
+    if (!packet.dmx_bytes) {
+      if (DEBUG_DMX) {
+        Serial.println("ERROR: Failed to allocate DMX buffer memory");
+      }
+      return;
+    }
     lastAllocatedSize = channelsToSend + 1;
   }
   
@@ -137,6 +177,11 @@ void DmxI2s::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
     
     // Combine the data byte with the stop/start bits
     packet.dmx_bytes[i + 1] = (hi << 8) | lo;
+    
+    // Allow the system to handle other tasks periodically
+    if ((i & 0x3F) == 0x3F) {
+      yield();
+    }
   }
   
   // Step 5: Calculate the total size of our DMX packet
@@ -144,6 +189,12 @@ void DmxI2s::sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) {
   
   // Step 6: Create a contiguous buffer for I2S transmission
   uint16_t* buffer = new uint16_t[totalSize];
+  if (!buffer) {
+    if (DEBUG_DMX) {
+      Serial.println("ERROR: Failed to allocate I2S buffer memory");
+    }
+    return;
+  }
   
   // Step 7: Copy all parts of the DMX packet into the buffer
   uint16_t offset = 0;
