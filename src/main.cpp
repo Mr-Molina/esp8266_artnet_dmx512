@@ -93,7 +93,9 @@ DmxOutput *dmxOutput = nullptr;
 // Global variables
 unsigned long tic_web = 0;
 unsigned long last_packet_received = 0;
-uint8_t *dmxData = nullptr;
+uint8_t *dmxDataFront = nullptr; // Front buffer (for writing)
+uint8_t *dmxDataBack = nullptr;  // Back buffer (for sending)
+volatile bool dmxBufferReady = false;
 float fps = 0.0f;
 uint32_t packetCounter = 0;
 
@@ -120,10 +122,17 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
   // Process only if universe matches configuration
   if (universe == config.universe)
   {
-    // Copy DMX data to our buffer
     uint16_t channelsToProcess = min(length, (uint16_t)DMX_CHANNELS);
-    memcpy(dmxData, data, channelsToProcess);
-    
+    memcpy(dmxDataFront, data, channelsToProcess);
+
+    // Swap buffers atomically
+    noInterrupts();
+    uint8_t* tmp = dmxDataFront;
+    dmxDataFront = dmxDataBack;
+    dmxDataBack = tmp;
+    dmxBufferReady = true;
+    interrupts();
+
     // Throttled debug output
     if (DEBUG_DMX && (now - lastDebugOutput > DEBUG_INTERVAL)) {
       lastDebugOutput = now;
@@ -234,8 +243,10 @@ void setup()
   Serial.println("Setup starting");
 
   // Allocate DMX data buffer
-  dmxData = new uint8_t[DMX_CHANNELS];
-  memset(dmxData, 0, DMX_CHANNELS);
+  dmxDataFront = new uint8_t[DMX_CHANNELS];
+  dmxDataBack = new uint8_t[DMX_CHANNELS];
+  memset(dmxDataFront, 0, DMX_CHANNELS);
+  memset(dmxDataBack, 0, DMX_CHANNELS);
 
   // Initialize the file system
   LittleFS.begin();
@@ -409,24 +420,29 @@ void loop()
     fps = artnetManager->getFramesPerSecond();
 
     // Send DMX data at configured rate
-    if ((millis() - now) > config.delay)
+    static unsigned long lastDmxSend = 0;
+    const unsigned long DMX_FRAME_PERIOD = 23; // ~44Hz (1000/44 ≈ 23ms)
+    if ((millis() - lastDmxSend) >= DMX_FRAME_PERIOD)
     {
-#ifdef WITH_TEST_CODE
-      testCode();
-#endif
-      // Send DMX data using the selected output method
-      dmxOutput->sendDmxData(dmxData, DMX_CHANNELS, config.channels);
-      
-      // Print DMX sending status periodically
-      static unsigned long lastStatusTime = 0;
-      if (millis() - lastStatusTime > 5000) {
-#ifdef ENABLE_UART
-        Serial.println("Sending DMX data to pin " + String(DMX_TX_PIN) + ", channels: " + String(config.channels));
-#endif
-#ifdef ENABLE_I2S
-        Serial.println("Sending DMX data to pin " + String(I2S_PIN) + ", channels: " + String(config.channels));
-#endif
-        lastStatusTime = millis();
+      lastDmxSend = millis();
+
+      // Only send if new data is ready
+      bool sendNow = false;
+      noInterrupts();
+      if (dmxBufferReady) {
+        dmxBufferReady = false;
+        sendNow = true;
+      }
+      interrupts();
+
+      if (sendNow) {
+        // Copy from back buffer to local buffer for sending
+        uint8_t localBuffer[DMX_CHANNELS];
+        memset(localBuffer, 0, DMX_CHANNELS); // Ensure unused channels are zeroed
+        memcpy(localBuffer, dmxDataBack, config.channels); // Only copy the number of active channels
+
+        // Send DMX data using the selected output method
+        dmxOutput->sendDmxData(localBuffer, config.channels, config.channels);
       }
     }
   }
