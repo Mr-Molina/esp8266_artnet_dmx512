@@ -1,4 +1,18 @@
-# Overview
+# ESP8266 Art-Net to DMX512 Bridge (Enhanced Fork)
+
+This fork of the original [robertoostenveld/esp8266_artnet_dmx512](https://github.com/robertoostenveld/esp8266_artnet_dmx512) project includes several important enhancements for stability and compatibility.
+
+## Key Improvements
+
+- **Moved DMX UART output to GPIO14** to avoid boot conflicts with the default TX pin
+- **Replaced Hardware Serial with SoftwareSerial** for more reliable DMX output
+- **Enhanced memory management** with proper validation and error handling
+- **Added watchdog timer feeding** to prevent random crashes
+- **Improved buffer handling** with atomic operations and validation
+- **Added periodic yield() calls** to prevent watchdog timeouts
+- **Better error handling** throughout the codebase
+
+## Overview
 
 This sketch implements a WiFi module that uses the Art-Net protocol over a wireless connection to control wired stage lighting fixtures/lamps that are DMX512 compatible. It listens to incoming Art-Net packets and forwards a single universe to DMX512. It features over-the-air (OTA) configuration of the wifi network that it connects to, configuration of the universe that is forwarded, and monitoring of the incoming packets and the frame rate.
 
@@ -13,8 +27,11 @@ See http://robertoostenveld.nl/art-net-to-dmx512-with-esp8266/ for more details 
 ## UART
 
 DMX is a serial protocol and - except for different voltage levels - very similar to RS232. Therefore it is obvious to use the built-in UART (Universal Asynchronous Receiver/Transmitter)
-of the micro controller to send the DMX frames. This is the original way this sketch used to work and expects the max485 level shifter to be connected to the pin that corresponds to Serial1.
-On a Wemos D1 this is pin D4 aka TX1. In order to use UART mode, comment in the ENABLE_UART definition.
+of the micro controller to send the DMX frames. 
+
+**Important Note:** In this fork, the DMX output has been moved to GPIO14 (D5) instead of the original D4/TX1 pin to avoid boot conflicts. We also use SoftwareSerial instead of Hardware Serial for better compatibility.
+
+In order to use UART mode, comment in the ENABLE_UART definition.
 
 ## I2S
 
@@ -30,7 +47,7 @@ Using a double throw switch allows to switch between those two pins as depicted 
 _Warning_: When uploading your this sketch to your ESP8266, make sure to disconnect any fixtures from the XLR connector because this means sending data to RX0 and will cause your
 fixtures to do random things. This might not be a big problem with simple lamps but might cause damage when using motion devices.
 
-You can just as well use two max485 circuits and wire one to TX1/D4 and the second one to RX0 and comment in both modes (ENABLE_UART and ENABLE_I2S).
+You can just as well use two max485 circuits and wire one to GPIO14 (for UART) and the second one to RX0 and comment in both modes (ENABLE_UART and ENABLE_I2S).
 
 Because of the number of extra stop bits, I2S mode will cause the throughput to drop from 40 frames/second to approx. 30 f/s which still should be acceptable under normal circumstances.
 
@@ -76,7 +93,7 @@ Optional for I2S mode:
 
 - connect MAX485 module pin DE (data enable) to 3.3V (using 3.3V TTL)
 - connect MAX485 module pin RE (receive enable) to GND
-- connect MAX485 module pin DI (data in) to D4/TX1 of the Wemos D1 mini for UART operation
+- connect MAX485 module pin DI (data in) to GPIO14 (D5) of the Wemos D1 mini for UART operation
 - connect MAX485 module pin DI (data in) to RX/GPIO3 of the Wemos D1 mini for I2S operation
 - connect MAX485 module VCC to 3.3V (or to DE)
 - connect MAX485 module pin A to XLR 3
@@ -108,3 +125,21 @@ At the moment (May 2025), the Arduino 2.x IDE supports LittleFS natively. For Pl
 ```
 board_build.filesystem = littlefs
 ```
+
+## Development Notes
+
+This fork was enhanced with the help of AI to improve memory management and stability. The main changes include:
+
+1. Moving the DMX UART output from the default TX pin to GPIO14 to avoid boot conflicts
+2. Replacing Hardware Serial with SoftwareSerial for more reliable DMX output
+3. Adding proper input validation to prevent crashes
+4. Implementing watchdog timer feeding to prevent random crashes
+5. Adding buffer validation and atomic operations for thread safety
+6. Periodic yield() calls to prevent watchdog timeouts
+7. Better error handling and memory allocation checks
+
+These changes significantly improve the stability of the device, especially when running for extended periods or with complex DMX setups.
+
+## About the Developer
+
+I'm an IT staff member at a school who developed this enhanced version for our school's prom lighting system. While I'm not a professional in the performance lighting field, this project allowed us to create a reliable and cost-effective DMX control solution for our school events. The improvements made to the original code were specifically aimed at addressing stability issues we encountered during testing with our lighting equipment.
