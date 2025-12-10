@@ -9,11 +9,10 @@
    2. Converts this data to DMX512 format (used by most stage lights).
    3. Sends the DMX512 data to a MAX485 chip, which drives the DMX line.
 
-   HARDWARE OPTIONS:
-   - UART: Uses a standard serial port (bit-banged or hardware) for DMX output.
-   - I2S: Uses the I2S peripheral for precise DMX timing (recommended for reliability).
+  HARDWARE OPTION:
+  - UART: Uses a standard serial port (bit-banged or software-based) for DMX output.
 
-   NOTE: Wiring depends on the output method (UART or I2S). See documentation for details.
+  NOTE: Wiring details are documented in the README.
 
    MORE INFORMATION:
    - Project page: https://robertoostenveld.nl/art-net-to-dmx512-with-esp8266/
@@ -29,29 +28,17 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <cstdint>
+#include <new>
 
 // Project modules
 #include "webinterface.h"
 #include "network_manager.h"
 #include "artnet_manager.h"
-#include "dmx_output.h"
+#include "dmx_uart.h"
 
 // Debug flags
 bool DEBUG_WEB = false;    // Enable debug messages for web interface
 bool DEBUG_DMX = false;    // Enable debug messages for DMX data
-
-// Output method selection
-#define ENABLE_UART
-// #define ENABLE_I2S
-
-#ifdef ENABLE_UART
-#include "dmx_uart.h"
-#endif
-
-#ifdef ENABLE_I2S
-#include "dmx_i2s.h"
-// #define I2S_SUPER_SAFE // Uncomment for extra timing margin
-#endif
 
 // #define ENABLE_STANDALONE // Uncomment for AP mode
 // #define STANDALONE_PASSWORD "wifisecret"
@@ -72,14 +59,16 @@ constexpr uint16_t DMX_CHANNELS = 512; // DMX512 standard channel count
 ESP8266WebServer server(80);         // Web server for configuration
 NetworkManager *networkManager = nullptr; // Handles WiFi and mDNS
 ArtnetManager *artnetManager = nullptr;   // Handles Art-Net reception
-DmxOutput *dmxOutput = nullptr;           // Abstract DMX output interface
+DmxUart *dmxOutput = nullptr;             // DMX output driver
 
 // --- Global variables ---
 unsigned long tic_web = 0;           // Last web UI activity timestamp
 unsigned long last_packet_received = 0; // Last Art-Net packet timestamp
 uint8_t *dmxDataFront = nullptr;     // Buffer for incoming Art-Net data
 uint8_t *dmxDataBack = nullptr;      // Buffer for DMX output (double buffering)
+uint8_t dmxTransmitBuffer[DMX_CHANNELS]; // Buffer forwarded to DMX driver
 volatile bool dmxBufferReady = false; // Flag: new DMX data ready to send
+bool dmxTransmitValid = false;       // Tracks whether transmit buffer has data
 float fps = 0.0f;                    // Art-Net frames per second
 uint32_t packetCounter = 0;          // Art-Net packet counter
 
@@ -88,6 +77,13 @@ uint32_t packetCounter = 0;          // Art-Net packet counter
 bool arduinoOtaStarted = false;
 unsigned int last_ota_progress = 0;
 #endif
+
+static void fatalErrorAndRestart(const char* message)
+{
+  Serial.println(message);
+  delay(5000);
+  ESP.restart();
+}
 
 // Art-Net DMX packet callback: called for each received Art-Net DMX packet
 void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *data)
@@ -204,13 +200,27 @@ void setup()
   Serial.println("Setup starting");
 
   // Allocate double buffers for DMX data
-  dmxDataFront = new uint8_t[DMX_CHANNELS];
-  dmxDataBack = new uint8_t[DMX_CHANNELS];
+  dmxDataFront = new (std::nothrow) uint8_t[DMX_CHANNELS];
+  dmxDataBack = new (std::nothrow) uint8_t[DMX_CHANNELS];
+  if (!dmxDataFront || !dmxDataBack)
+  {
+    fatalErrorAndRestart("Failed to allocate DMX buffers");
+  }
   memset(dmxDataFront, 0, DMX_CHANNELS);
   memset(dmxDataBack, 0, DMX_CHANNELS);
+  memset(dmxTransmitBuffer, 0, DMX_CHANNELS);
+  dmxTransmitValid = true; // Start by outputting zeroed DMX values
 
   // Initialize file system for config storage
-  LittleFS.begin();
+  if (!LittleFS.begin())
+  {
+    Serial.println("LittleFS mount failed, attempting to format...");
+    if (!LittleFS.format() || !LittleFS.begin())
+    {
+      fatalErrorAndRestart("Unable to mount LittleFS filesystem");
+    }
+    Serial.println("LittleFS mounted after format");
+  }
 
   // Load configuration from file, or use defaults
   if (!loadConfig()) {
@@ -219,18 +229,32 @@ void setup()
   }
 
   // Initialize network manager (WiFi, mDNS)
-  networkManager = new NetworkManager(host);
+  networkManager = new (std::nothrow) NetworkManager(host);
+  if (!networkManager)
+  {
+    fatalErrorAndRestart("Failed to allocate NetworkManager");
+  }
 
   // Connect to WiFi (AP or STA mode)
 #ifdef ENABLE_STANDALONE
-  networkManager->begin(true, STANDALONE_PASSWORD);
+  bool wifiConnected = networkManager->begin(true, STANDALONE_PASSWORD);
 #else
 #ifdef STANDALONE_PASSWORD
-  networkManager->begin(false, STANDALONE_PASSWORD);
+  bool wifiConnected = networkManager->begin(false, STANDALONE_PASSWORD);
 #else
-  networkManager->begin();
+  bool wifiConnected = networkManager->begin();
 #endif
 #endif
+
+  if (!wifiConnected)
+  {
+    Serial.println("WiFi connection failed, starting configuration portal");
+    networkManager->resetAndStartConfigPortal();
+    if (!networkManager->isConnected())
+    {
+      fatalErrorAndRestart("Unable to establish WiFi connection");
+    }
+  }
 
 #ifdef ENABLE_MDNS
   networkManager->startMDNS();
@@ -258,21 +282,18 @@ void setup()
   }
 #endif
 
-  // Initialize DMX output (UART or I2S)
-#ifdef ENABLE_UART
-  dmxOutput = new DmxUart();
-  Serial.println("Using UART DMX output on pin " + String(DMX_TX_PIN));
-#endif
-#ifdef ENABLE_I2S
-#ifdef I2S_SUPER_SAFE
-  dmxOutput = new DmxI2s(true);
-  Serial.println("Using super safe I2S timing on pin " + String(I2S_PIN));
-#else
-  dmxOutput = new DmxI2s(false);
-  Serial.println("Using normal I2S timing on pin " + String(I2S_PIN));
-#endif
-#endif
+  // Initialize DMX output (UART)
+  dmxOutput = new (std::nothrow) DmxUart();
+  Serial.println("Using UART DMX output on GPIO" + String(DMX_TX_PIN));
+  if (!dmxOutput)
+  {
+    fatalErrorAndRestart("Failed to allocate DMX output driver");
+  }
   dmxOutput->begin();
+  if (!dmxOutput->isReady())
+  {
+    fatalErrorAndRestart("DMX output initialization failed");
+  }
 
 #ifdef ENABLE_WEBINTERFACE
   setupWebServer(server);
@@ -280,7 +301,11 @@ void setup()
 #endif
 
   // Initialize Art-Net receiver and set DMX callback
-  artnetManager = new ArtnetManager();
+  artnetManager = new (std::nothrow) ArtnetManager();
+  if (!artnetManager)
+  {
+    fatalErrorAndRestart("Failed to allocate ArtnetManager");
+  }
   artnetManager->begin();
   artnetManager->setDmxCallback(onDmxPacket);
 
@@ -293,12 +318,7 @@ void setup()
   // Print DMX configuration if debugging
   if (DEBUG_DMX) {
     Serial.println("DMX debugging enabled");
-#ifdef ENABLE_UART
     Serial.print("DMX UART pin: "); Serial.println(DMX_TX_PIN);
-#endif
-#ifdef ENABLE_I2S
-    Serial.print("DMX I2S pin: "); Serial.println(I2S_PIN);
-#endif
     Serial.print("DMX Universe: "); Serial.println(config.universe);
     Serial.print("DMX Channels: "); Serial.println(config.channels);
     Serial.print("DMX Delay: "); Serial.println(config.delay);
@@ -306,14 +326,8 @@ void setup()
 
   // Print hardware connection instructions
   Serial.println("\nHARDWARE CONNECTION:");
-#ifdef ENABLE_UART
   Serial.println("Connect your MAX485 or similar DMX driver to:");
   Serial.println("- GPIO" + String(DMX_TX_PIN) + " for DMX data");
-#endif
-#ifdef ENABLE_I2S
-  Serial.println("Connect your MAX485 or similar DMX driver to:");
-  Serial.println("- GPIO" + String(I2S_PIN) + " (RX pin) for DMX data");
-#endif
   Serial.println("- Make sure your driver chip has proper power and ground connections");
   Serial.println("- Connect a 120 ohm termination resistor at the end of the DMX line");
 }
@@ -379,13 +393,21 @@ void loop()
     {
       lastDmxSend = currentMillis;
 
-      // Always send the last known DMX buffer, even if no new Art-Net data
-      uint8_t localBuffer[DMX_CHANNELS];
-      memset(localBuffer, 0, DMX_CHANNELS);
       uint16_t safeChannels = constrain(config.channels, 1, DMX_CHANNELS);
-      memcpy(localBuffer, dmxDataBack, safeChannels);
 
-      dmxOutput->sendDmxData(localBuffer, safeChannels, safeChannels);
+      if (dmxBufferReady)
+      {
+        noInterrupts();
+        memcpy(dmxTransmitBuffer, dmxDataBack, safeChannels);
+        dmxBufferReady = false;
+        interrupts();
+        dmxTransmitValid = true;
+      }
+
+      if (dmxTransmitValid)
+      {
+        dmxOutput->sendDmxData(dmxTransmitBuffer, safeChannels, safeChannels);
+      }
     }
   }
 }

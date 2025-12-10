@@ -88,6 +88,7 @@ struct Config
   uint16_t universe; // DMX universe number (1-32767)
   uint16_t channels; // Total number of DMX channels to transmit (1-512), always starting from channel 1
   uint16_t delay;    // Delay between DMX packets in milliseconds (1-1000)
+  char adminPassword[33]; // Shared password for web administration (empty disables auth)
 };
 
 // Make our config variable available to other files
@@ -100,6 +101,8 @@ void setupWebServer(ESP8266WebServer& server);
 bool defaultConfig(void);  // Set default configuration values
 bool loadConfig(void);     // Load configuration from file
 bool saveConfig(void);     // Save configuration to file
+
+bool ensureAuthorized();   // Require HTTP auth for sensitive endpoints
 
 // Web request handlers - these functions process different web requests
 void handleUpdate1(void);  // Handle firmware update (part 1)

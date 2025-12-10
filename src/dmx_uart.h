@@ -1,8 +1,6 @@
 #ifndef _DMX_UART_H_
 #define _DMX_UART_H_
 
-#include "dmx_output.h"
-
 #include "c_types.h"
 #include "eagle_soc.h"
 #include "uart_register.h"
@@ -22,10 +20,9 @@
 // Define the pin to use for DMX output
 #define DMX_TX_PIN 14  // Using GPIO14 for DMX output
 
-// This class implements the DmxOutput interface using UART (serial communication)
 // UART stands for Universal Asynchronous Receiver/Transmitter
 // It's like a digital walkie-talkie that sends data one bit at a time
-class DmxUart : public DmxOutput {
+class DmxUart {
 public:
   // Constructor: Creates a new DmxUart object
   DmxUart();
@@ -35,18 +32,20 @@ public:
   
   // Initialize the UART hardware for DMX output
   // This sets up the serial communication at the right speed and format
-  void begin() override;
+  void begin();
   
   // Send DMX lighting control data over UART to the lights
   // Parameters:
   //   data: The array of lighting values (brightness, colors, etc.)
   //   length: How many values are in the data array
   //   maxChannels: The maximum number of channels to send
-  void sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels) override;
+  void sendDmxData(uint8_t* data, uint16_t length, uint16_t maxChannels);
   
   // Get how many DMX packets are being sent per second
   // This tells you how smoothly your lights will respond
-  float getPacketsPerSecond() override;
+  float getPacketsPerSecond();
+
+  bool isReady() const;
 
 private:
   // Send the DMX break signal using the serial method

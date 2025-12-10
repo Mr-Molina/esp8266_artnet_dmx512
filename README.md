@@ -24,35 +24,12 @@ See http://robertoostenveld.nl/art-net-to-dmx512-with-esp8266/ for more details 
 
 # Operating modes
 
-## UART
+## UART Only
 
 DMX is a serial protocol and - except for different voltage levels - very similar to RS232. Therefore it is obvious to use the built-in UART (Universal Asynchronous Receiver/Transmitter)
-of the micro controller to send the DMX frames. 
+of the micro controller to send the DMX frames. This fork now focuses exclusively on the UART path for maximum simplicity and reliability.
 
-**Important Note:** In this fork, the DMX output has been moved to GPIO14 (D5) instead of the original D4/TX1 pin to avoid boot conflicts. We also use SoftwareSerial instead of Hardware Serial for better compatibility.
-
-In order to use UART mode, comment in the ENABLE_UART definition.
-
-## I2S
-
-However, the built-in UART provides only very limited control over e.g. number of stop bits, breaks etc. That may become a problem when you want to control devices with kind of "sloppy" firmware. When trying to control two cheap, china made moving heads, I found that they somehow reacted to the signal but showed lots of jitter and random moves, random color changes and so on.
-When connected to a commercial, manual DMX512 control panel, they worked flawlessly. An analysis with an oscilloscope showed a significant difference between the signal and the offical DMX
-standard, most obviously in the number of stop bits. The DMX standard defines 2 stop bits whereas the commercial panel sent approx. 11 bits.
-It seems like the manufacturers of such panels are aware of the fact that there are devices which apparently need more time between two DMX channel values to process the data received.
-
-Because the buil-in UART does not allow to send more than 2 stop bits, the I2S mode (https://en.wikipedia.org/wiki/I%C2%B2S) has been implemented that supports very fine-grained control over
-the timing of every single bit. Unfortunately, the I2S data output pin is hardwired to GPIO3 (=RX0) on an ESP8266 which means that the max485 level shifter needs to be attached to this pin.
-Using a double throw switch allows to switch between those two pins as depicted in the wiring schematic below.
-
-_Warning_: When uploading your this sketch to your ESP8266, make sure to disconnect any fixtures from the XLR connector because this means sending data to RX0 and will cause your
-fixtures to do random things. This might not be a big problem with simple lamps but might cause damage when using motion devices.
-
-You can just as well use two max485 circuits and wire one to GPIO14 (for UART) and the second one to RX0 and comment in both modes (ENABLE_UART and ENABLE_I2S).
-
-Because of the number of extra stop bits, I2S mode will cause the throughput to drop from 40 frames/second to approx. 30 f/s which still should be acceptable under normal circumstances.
-
-For I2S mode, there is another conditional define (I2S_SUPER_SAFE) which not only adds extra stop bits but also extends the MBB (mark before break) and SFB (space before break)
-to the values observed with the oscilloscope. Try this if you encounter problems with a fixture although you are already using I2S mode.
+**Important Note:** The DMX output has been moved to GPIO14 (D5) instead of the original D4/TX1 pin to avoid boot conflicts. We also use SoftwareSerial instead of Hardware Serial for better compatibility.
 
 ## Standalone mode
 
@@ -75,11 +52,6 @@ Consider setting also a password in standalone mode, otherwise someone else migh
 - panel mount 2.1 x 5.5 mm DC barrel jack
 - 82 x 58 x 34 mm ABS enclosure box
 
-Optional for I2S mode:
-
-- an SPDT (single pole double throw) switch OR
-- an extra MAX485 module and XLR connector
-
 # Wiring scheme
 
 ![](schematic.png)
@@ -94,7 +66,6 @@ Optional for I2S mode:
 - connect MAX485 module pin DE (data enable) to 3.3V (using 3.3V TTL)
 - connect MAX485 module pin RE (receive enable) to GND
 - connect MAX485 module pin DI (data in) to GPIO14 (D5) of the Wemos D1 mini for UART operation
-- connect MAX485 module pin DI (data in) to RX/GPIO3 of the Wemos D1 mini for I2S operation
 - connect MAX485 module VCC to 3.3V (or to DE)
 - connect MAX485 module pin A to XLR 3
 - connect MAX485 module pin B to XLR 2

@@ -7,12 +7,54 @@ constexpr uint16_t CHANNELS_MIN = 1;
 constexpr uint16_t CHANNELS_MAX = 512;
 constexpr uint16_t DELAY_MIN = 1;
 constexpr uint16_t DELAY_MAX = 1000;
+constexpr size_t ADMIN_PASSWORD_MAX = 32;
+constexpr const char *DEFAULT_ADMIN_PASSWORD = "admin";
+constexpr const char *ADMIN_USERNAME = "admin";
 
 Config config;
 extern ESP8266WebServer server;
 extern unsigned long tic_web;
 extern float fps;
 extern uint32_t packetCounter;
+
+static void copyAdminPassword(const char *value)
+{
+  if (!value)
+  {
+    config.adminPassword[0] = '\0';
+    return;
+  }
+  strncpy(config.adminPassword, value, ADMIN_PASSWORD_MAX);
+  config.adminPassword[ADMIN_PASSWORD_MAX] = '\0';
+}
+
+static bool setAdminPasswordFromString(const String &value)
+{
+  if (value.length() > ADMIN_PASSWORD_MAX)
+  {
+    return false;
+  }
+
+  strncpy(config.adminPassword, value.c_str(), ADMIN_PASSWORD_MAX);
+  config.adminPassword[ADMIN_PASSWORD_MAX] = '\0';
+  return true;
+}
+
+bool ensureAuthorized()
+{
+  if (config.adminPassword[0] == '\0')
+  {
+    return true;
+  }
+
+  if (server.authenticate(ADMIN_USERNAME, config.adminPassword))
+  {
+    return true;
+  }
+
+  server.requestAuthentication();
+  return false;
+}
 
 /***************************************************************************/
 
@@ -29,6 +71,7 @@ void setupWebServer(ESP8266WebServer &server)
   server.on("/defaults", HTTP_GET, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     Serial.println("handleDefaults");
     handleStaticFile("/reload_success.html");
     defaultConfig();
@@ -40,6 +83,7 @@ void setupWebServer(ESP8266WebServer &server)
   server.on("/reconnect", HTTP_GET, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     Serial.println("handleReconnect");
     handleStaticFile("/reload_success.html");
     
@@ -91,6 +135,7 @@ void setupWebServer(ESP8266WebServer &server)
   server.on("/restart", HTTP_GET, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     Serial.println("handleRestart");
     handleStaticFile("/reload_success.html");
     server.close();
@@ -102,21 +147,25 @@ void setupWebServer(ESP8266WebServer &server)
   server.on("/dir", HTTP_GET, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     handleDirList(); });
 
   server.on("/json", HTTP_PUT, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     handleJSON(); });
 
   server.on("/json", HTTP_POST, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     handleJSON(); });
 
   server.on("/json", HTTP_GET, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     JsonDocument root;
     N_CONFIG_TO_JSON(universe, "universe");
     N_CONFIG_TO_JSON(channels, "channels");
@@ -125,6 +174,7 @@ void setupWebServer(ESP8266WebServer &server)
     root["uptime"]  = long(millis() / 1000);
     root["packets"] = packetCounter;
     root["fps"]     = fps;
+    root["authEnabled"] = config.adminPassword[0] != '\0';
     String str;
     serializeJson(root, str);
     server.setContentLength(str.length());
@@ -133,9 +183,20 @@ void setupWebServer(ESP8266WebServer &server)
   server.on("/update", HTTP_GET, [&server]()
             {
     tic_web = millis();
+    if (!ensureAuthorized()) return;
     handleStaticFile("/update.html"); });
 
-  server.on("/update", HTTP_POST, handleUpdate1, handleUpdate2);
+  server.on("/update", HTTP_POST,
+            []()
+            {
+              if (!ensureAuthorized()) return;
+              handleUpdate1();
+            },
+            []()
+            {
+              if (!ensureAuthorized()) return;
+              handleUpdate2();
+            });
 }
 
 static String getContentType(const String &path)
@@ -186,6 +247,7 @@ bool defaultConfig()
   config.universe = UNIVERSE_MIN;
   config.channels = CHANNELS_MAX;
   config.delay = 25;
+  copyAdminPassword(DEFAULT_ADMIN_PASSWORD);
 
   return saveConfig();
 }
@@ -238,6 +300,8 @@ bool loadConfig()
     return false;
   }
 
+  config.adminPassword[0] = '\0';
+
   if (root["universe"].is<uint16_t>())
   {
     uint16_t value = root["universe"].as<uint16_t>();
@@ -256,6 +320,11 @@ bool loadConfig()
     config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
   }
 
+  if (root["adminPassword"].is<const char*>())
+  {
+    copyAdminPassword(root["adminPassword"].as<const char*>());
+  }
+
   return true;
 }
 
@@ -269,6 +338,7 @@ bool saveConfig()
   root["universe"] = constrain(config.universe, UNIVERSE_MIN, UNIVERSE_MAX);
   root["channels"] = constrain(config.channels, CHANNELS_MIN, CHANNELS_MAX);
   root["delay"] = constrain(config.delay, DELAY_MIN, DELAY_MAX);
+  root["adminPassword"] = config.adminPassword;
 
   config.universe = root["universe"].as<uint16_t>();
   config.channels = root["channels"].as<uint16_t>();
@@ -486,6 +556,10 @@ void handleJSON()
     printRequest();
   }
 
+  if (!ensureAuthorized()) {
+    return;
+  }
+
   bool configChanged = false;
 
   if (server.hasArg("universe") || server.hasArg("channels") || server.hasArg("delay"))
@@ -509,6 +583,18 @@ void handleJSON()
     {
       unsigned int value = server.arg("delay").toInt();
       config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
+      configChanged = true;
+    }
+
+    if (server.hasArg("adminPassword"))
+    {
+      String pass = server.arg("adminPassword");
+      if (!setAdminPasswordFromString(pass))
+      {
+        Serial.println("Admin password too long");
+        handleStaticFile("/reload_failure.html");
+        return;
+      }
       configChanged = true;
     }
 
@@ -555,6 +641,18 @@ void handleJSON()
     {
       unsigned int value = root["delay"].as<unsigned int>();
       config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
+      configChanged = true;
+    }
+
+    if (root["adminPassword"].is<const char*>())
+    {
+      const char *value = root["adminPassword"].as<const char*>();
+      if (!setAdminPasswordFromString(String(value)))
+      {
+        Serial.println("Admin password too long");
+        handleStaticFile("/reload_failure.html");
+        return;
+      }
       configChanged = true;
     }
 

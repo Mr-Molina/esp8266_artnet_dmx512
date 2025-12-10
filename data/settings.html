@@ -9,7 +9,7 @@
 <body>
 
 <h1>Settings</h1>
-<form id="settings-form" method="post" action="json">
+<form id="settings-form">
 
     <div class="field">
         <label for="universe">Universe (1-32767):</label>
@@ -28,23 +28,109 @@
     </div>
 
     <div class="field">
+        <label for="adminPasswordInput">Admin Password (optional):</label>
+        <input type="password" id="adminPasswordInput" name="adminPassword" placeholder="Leave blank to keep current password" maxlength="32">
+        <small>Provide a new password to update the device admin login. Leave empty to keep existing.</small>
+    </div>
+
+    <div class="field warning" id="auth-state">Security: checking...</div>
+
+    <div class="field">
         <button type="submit">Save</button>
     </div>
 </form>
+
+<div class="field">
+    <button type="button" class="secondary" id="clearStoredPassword">Clear Stored Password</button>
+</div>
+
+<div id="form-message"></div>
 
 <div class="nav-button">
   <a href="/index.html"><button>Back to Main</button></a>
 </div>
 
+<script src="auth.js"></script>
 <script>
-  async function updateContent() {
-    const response = await fetch("json");
-    const data = await response.json();
-    console.log(data);
-    document.getElementById("universe").value = data["universe"];
-    document.getElementById("channels").value = data["channels"];
-    document.getElementById("delay").value = data["delay"];
+  const messageBox = document.getElementById("form-message");
+  const authState = document.getElementById("auth-state");
+
+  function showMessage(text, isError = false) {
+    messageBox.textContent = text;
+    messageBox.className = isError ? "error-message" : "success-message";
   }
+
+  function clearMessage() {
+    messageBox.textContent = "";
+    messageBox.className = "";
+  }
+
+  async function updateContent() {
+    try {
+      const response = await AuthClient.request("json");
+      if (!response.ok) {
+        throw new Error("Failed to load settings");
+      }
+      const data = await response.json();
+      document.getElementById("universe").value = data["universe"];
+      document.getElementById("channels").value = data["channels"];
+      document.getElementById("delay").value = data["delay"];
+      const enabled = !!data.authEnabled;
+      authState.textContent = `Security: ${enabled ? "Enabled" : "Disabled"}`;
+      authState.className = enabled ? "field success-message" : "field warning";
+    } catch (error) {
+      showMessage(error.message, true);
+      authState.textContent = "Security: unknown";
+      authState.className = "field warning";
+    }
+  }
+
+  document.getElementById("settings-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearMessage();
+
+    const formData = new URLSearchParams();
+    formData.append("universe", document.getElementById("universe").value);
+    formData.append("channels", document.getElementById("channels").value);
+    formData.append("delay", document.getElementById("delay").value);
+
+    const passwordValue = document.getElementById("adminPasswordInput").value.trim();
+    if (passwordValue.length > 0) {
+      formData.append("adminPassword", passwordValue);
+    }
+
+    const bodyContent = formData.toString();
+
+    try {
+      const response = await AuthClient.request("json", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: bodyContent
+      });
+
+      if (!response.ok) {
+        throw new Error("Save failed");
+      }
+
+      if (passwordValue.length > 0) {
+        AuthClient.setPassword(passwordValue);
+        document.getElementById("adminPasswordInput").value = "";
+      }
+
+      showMessage("Settings saved successfully");
+      updateContent();
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  });
+
+  document.getElementById("clearStoredPassword").addEventListener("click", () => {
+    AuthClient.clearPassword();
+    showMessage("Stored password cleared. You will be prompted next time.");
+  });
+
   updateContent();
 </script>
 

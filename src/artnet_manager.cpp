@@ -29,9 +29,6 @@ void ArtnetManager::read()
 {
   // Ask the Art-Net library to check for new data
   artnet.read();
-  
-  // Count this frame for our statistics
-  frameCounter++;
 }
 
 // Set up which function should be called when new DMX data arrives
@@ -53,6 +50,12 @@ void ArtnetManager::artnetDmxStaticCallback(uint16_t universe, uint16_t length, 
   {
     // Count this packet for our statistics
     instance->packetCounter++;
+    instance->frameCounter++;
+
+    if (instance->lastFrameTime == 0)
+    {
+      instance->lastFrameTime = millis();
+    }
     
     // If the user set up a callback function, call it with the data
     if (instance->userCallback)
@@ -83,10 +86,7 @@ void ArtnetManager::updateStatistics()
   // Calculate how much time has passed since our last update
   unsigned long elapsed = now - lastFrameTime;
 
-  // Only update statistics if:
-  // 1. At least 1 second has passed (1000 milliseconds)
-  // 2. We've received at least 100 frames (to get a good average)
-  if (elapsed > 1000 && frameCounter > 100)
+  if (elapsed >= 1000 && frameCounter > 0)
   {
     // Calculate frames per second:
     // (frames ÷ milliseconds) × 1000 = frames per second

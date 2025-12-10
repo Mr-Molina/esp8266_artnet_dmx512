@@ -26,15 +26,22 @@ Frames per second:
   <a href="/index.html"><button>Back to Main</button></a>
 </div>
 
+<script src="auth.js"></script>
 <script>
   async function updateContent() {
-    const response = await fetch("json");
-    const data = await response.json();
-    console.log(data);
-    document.getElementById("version").innerHTML = data["version"];
-    document.getElementById("uptime").innerHTML = data["uptime"];
-    document.getElementById("packets").innerHTML = data["packets"];
-    document.getElementById("fps").innerHTML = data["fps"];
+    try {
+      const response = await AuthClient.request("json");
+      if (!response.ok) {
+        throw new Error("Monitor request failed");
+      }
+      const data = await response.json();
+      document.getElementById("version").innerHTML = data["version"];
+      document.getElementById("uptime").innerHTML = data["uptime"];
+      document.getElementById("packets").innerHTML = data["packets"];
+      document.getElementById("fps").innerHTML = data["fps"];
+    } catch (error) {
+      document.getElementById("fps").innerHTML = error.message;
+    }
   }
   updateContent();
   

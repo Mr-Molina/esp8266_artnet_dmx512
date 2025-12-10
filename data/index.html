@@ -54,6 +54,9 @@
 
 <div class="status">
   <div id="status-info">Loading status...</div>
+  <div>Security: <span id="auth-enabled" class="badge">Checking...</span></div>
+  <div>Stored password: <span id="auth-storage" class="badge">Unknown</span></div>
+  <button type="button" class="secondary" id="clear-auth">Clear Stored Password</button>
 </div>
 
 <div class="menu-container">
@@ -98,18 +101,43 @@
   </div>
 </div>
 
+<script src="auth.js"></script>
 <script>
+  const statusInfo = document.getElementById("status-info");
+  const authEnabledEl = document.getElementById("auth-enabled");
+  const authStorageEl = document.getElementById("auth-storage");
+
+  function updateStorageBadge() {
+    authStorageEl.textContent = AuthClient.hasPassword() ? "Saved locally" : "Not saved";
+    authStorageEl.className = "badge " + (AuthClient.hasPassword() ? "badge-info" : "badge-muted");
+  }
+
   async function updateStatus() {
     try {
-      const response = await fetch("json");
+      const response = await AuthClient.request("json");
+      if (!response.ok) {
+        throw new Error("Status request failed");
+      }
       const data = await response.json();
-      document.getElementById("status-info").innerHTML = 
-        `Firmware: ${data.version} | Uptime: ${data.uptime}s | FPS: ${data.fps.toFixed(1)}`;
+      statusInfo.innerHTML = `Firmware: ${data.version} | Uptime: ${data.uptime}s | FPS: ${Number(data.fps).toFixed(1)}`;
+      const authEnabled = !!data.authEnabled;
+      authEnabledEl.textContent = authEnabled ? "Enabled" : "Disabled";
+      authEnabledEl.className = "badge " + (authEnabled ? "badge-success" : "badge-muted");
     } catch (e) {
-      document.getElementById("status-info").innerHTML = "Status unavailable";
+      statusInfo.textContent = "Status unavailable";
+      authEnabledEl.textContent = "Unknown";
+      authEnabledEl.className = "badge badge-muted";
     }
+    updateStorageBadge();
   }
+
+  document.getElementById("clear-auth").addEventListener("click", () => {
+    AuthClient.clearPassword();
+    updateStorageBadge();
+  });
+
   updateStatus();
+  setInterval(updateStatus, 5000);
 </script>
 
 </body>

@@ -28,6 +28,12 @@ button{
 button:hover {
     background-color: #0b86ca;
 }
+.secondary {
+    background-color: #6c757d;
+}
+.secondary:hover {
+    background-color: #545b62;
+}
 .q{
     float: right;width: 64px;text-align: right;
 }
@@ -75,4 +81,25 @@ label {
     font-weight: bold;
     color: #0b86ca;
     margin-bottom: 15px;
+}
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    background-color: #e0e0e0;
+    color: #333;
+    margin-left: 5px;
+}
+.badge-success {
+    background-color: #dff0d8;
+    color: #3c763d;
+}
+.badge-info {
+    background-color: #cfe2ff;
+    color: #084298;
+}
+.badge-muted {
+    background-color: #f0f0f0;
+    color: #666;
 }

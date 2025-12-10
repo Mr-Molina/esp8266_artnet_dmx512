@@ -1,4 +1,5 @@
 #include "dmx_uart.h"
+#include <Arduino.h>
 
 // Constructor: Sets up a new DmxUart with all counters at zero
 DmxUart::DmxUart() : packetCounter(0), lastPacketTime(0)
@@ -136,4 +137,9 @@ float DmxUart::getPacketsPerSecond()
 
   // If we can't calculate yet, return zero
   return 0.0;
+}
+
+bool DmxUart::isReady() const
+{
+  return dmxSerial != nullptr;
 }
