@@ -90,6 +90,8 @@ void setupWebServer(ESP8266WebServer &server)
     // Store the current WiFi credentials before resetting
     String ssid = WiFi.SSID();
     String pass = WiFi.psk();
+    // Capture request args BEFORE stopping the server (stop invalidates request data)
+    bool resetRequested = server.hasArg("reset") && server.arg("reset") == "true";
     
     server.close();
     server.stop();
@@ -97,7 +99,7 @@ void setupWebServer(ESP8266WebServer &server)
     
     WiFiManager wifiManager;
     // Only reset settings if explicitly requested with a query parameter
-    if (server.hasArg("reset") && server.arg("reset") == "true") {
+    if (resetRequested) {
       wifiManager.resetSettings();
       Serial.println("WiFi settings reset requested");
     } else {
@@ -108,7 +110,7 @@ void setupWebServer(ESP8266WebServer &server)
     wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
     
     // If we have existing credentials, try to connect with them first
-    if (ssid.length() > 0 && !server.hasArg("reset")) {
+    if (ssid.length() > 0 && !resetRequested) {
       WiFi.begin(ssid, pass);
       
       // Wait up to 10 seconds for connection

@@ -14,7 +14,10 @@ ArtnetManager::ArtnetManager()
 // Destructor: Cleans up when we're done with the ArtnetManager
 ArtnetManager::~ArtnetManager()
 {
-  // Nothing to clean up right now
+  if (instance == this)
+  {
+    instance = nullptr;
+  }
 }
 
 // Start the Art-Net system so it can receive data over WiFi

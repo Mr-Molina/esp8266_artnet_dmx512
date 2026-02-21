@@ -380,7 +380,7 @@ void loop()
     // Send DMX data at a fixed frame rate (~44Hz)
     static unsigned long lastDmxSend = 0;
     static unsigned long lastWatchdogReset = 0;
-    const unsigned long DMX_FRAME_PERIOD = 23; // ms between DMX frames
+    const unsigned long DMX_FRAME_PERIOD = config.delay; // ms between DMX frames (from settings)
     const unsigned long WATCHDOG_PERIOD = 500; // ms between watchdog resets
 
     unsigned long currentMillis = millis();

@@ -2,7 +2,7 @@
 #include <Arduino.h>
 
 // Constructor: Sets up a new DmxUart with all counters at zero
-DmxUart::DmxUart() : packetCounter(0), lastPacketTime(0)
+DmxUart::DmxUart() : packetCounter(0), lastPacketTime(0), ppsCounter(0)
 {
   // Initialize SoftwareSerial for DMX output
   dmxSerial = new SoftwareSerial(255, DMX_TX_PIN); // RX pin not used (255), TX on GPIO14
@@ -40,11 +40,14 @@ void DmxUart::begin()
 // Send the DMX break signal using the serial method
 void DmxUart::sendSerialBreak()
 {
-  // For software serial, we'll manually create a break by pulling the line low
+  // End SoftwareSerial to release pin control before manual break
+  dmxSerial->end();
   digitalWrite(DMX_TX_PIN, LOW);
   delayMicroseconds(DMX_BREAK); // Hold low for break time
   digitalWrite(DMX_TX_PIN, HIGH);
   delayMicroseconds(DMX_MAB); // Hold high for Mark After Break time
+  // Restart SoftwareSerial so it re-initializes its pin state
+  dmxSerial->begin(250000, SWSERIAL_8N2);
 }
 
 // No longer needed - removed unused method
@@ -103,11 +106,7 @@ void DmxUart::sendDmxData(uint8_t *data, uint16_t length, uint16_t maxChannels)
   interrupts(); // Re-enable interrupts
 
   packetCounter++;
-  unsigned long now = millis();
-  if (now - lastPacketTime > 1000)
-  {
-    lastPacketTime = now;
-  }
+  ppsCounter++;
 }
 
 // Get how many DMX packets are being sent per second
@@ -122,14 +121,14 @@ float DmxUart::getPacketsPerSecond()
   // Only calculate if:
   // 1. Some time has passed
   // 2. We've sent at least one packet
-  if (elapsed > 0 && packetCounter > 0)
+  if (elapsed > 0 && ppsCounter > 0)
   {
     // Calculate packets per second:
     // (packets ÷ milliseconds) × 1000 = packets per second
-    float pps = (1000.0 * packetCounter) / elapsed;
+    float pps = (1000.0 * ppsCounter) / elapsed;
 
     // Reset our counter for the next calculation
-    packetCounter = 0;
+    ppsCounter = 0;
     lastPacketTime = now;
 
     return pps;
