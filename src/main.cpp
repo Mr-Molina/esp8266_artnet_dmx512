@@ -196,7 +196,9 @@ void testCode()
 void setup()
 {
   Serial.begin(115200);
-  while (!Serial) { ; }
+  // Wait up to 2 seconds for serial to connect (skip if no USB attached)
+  unsigned long serialWait = millis();
+  while (!Serial && (millis() - serialWait < 2000)) { yield(); }
   Serial.println("Setup starting");
 
   // Allocate double buffers for DMX data
@@ -363,10 +365,10 @@ void loop()
 #endif
   }
 
-  // If web interface is active, slow down main loop to improve responsiveness
-  if ((millis() - tic_web) < 5000)
+  // If web interface is active, briefly slow down main loop to improve responsiveness
+  if ((millis() - tic_web) < 1000)
   {
-    delay(25);
+    delay(10);
   }
   else
   {

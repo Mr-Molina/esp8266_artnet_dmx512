@@ -27,59 +27,17 @@ extern bool DEBUG_DMX;
 #error ArduinoJson version 7 or higher is required
 #endif
 
-// These are helper macros (shortcuts) for working with configuration values
-// They make it easier to move data between JSON and our config structure
-
-/* These macros are for number values - DEPRECATED, use direct validation instead */
-// Copy a number from JSON to our config
-#define N_JSON_TO_CONFIG(x, y) \
-  {                            \
-    if (root.containsKey(y))   \
-    {                          \
-      config.x = root[y];      \
-    }                          \
-  }
-
+// Macros for moving data between JSON and config structure
 // Copy a number from our config to JSON
 #define N_CONFIG_TO_JSON(x, y) \
   {                            \
     root[y] = config.x;        \
   }
 
-// Copy a number from a web form to our config
-#define N_KEYVAL_TO_CONFIG(x, y)  \
-  {                               \
-    if (server.hasArg(y))         \
-    {                             \
-      String str = server.arg(y); \
-      config.x = str.toFloat();   \
-    }                             \
-  }
-
-/* These macros are for string values */
-// Copy a string from JSON to our config
-#define S_JSON_TO_CONFIG(x, y)   \
-  {                              \
-    if (root.containsKey(y))     \
-    {                            \
-      strcpy(config.x, root[y]); \
-    }                            \
-  }
-
 // Copy a string from our config to JSON
 #define S_CONFIG_TO_JSON(x, y) \
   {                            \
     root[y] = config.x;        \
-  }
-
-// Copy a string from a web form to our config
-#define S_KEYVAL_TO_CONFIG(x, y)     \
-  {                                  \
-    if (server.hasArg(y))            \
-    {                                \
-      String str = server.arg(y);    \
-      strcpy(config.x, str.c_str()); \
-    }                                \
   }
 
 // This structure holds all our configuration settings

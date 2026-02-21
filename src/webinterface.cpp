@@ -1,5 +1,6 @@
 #include "webinterface.h"
-#include <WiFiManager.h> // Add this include
+#include "network_manager.h"
+#include <WiFiManager.h>
 
 constexpr uint16_t UNIVERSE_MIN = 1;
 constexpr uint16_t UNIVERSE_MAX = 32767;
@@ -16,6 +17,19 @@ extern ESP8266WebServer server;
 extern unsigned long tic_web;
 extern float fps;
 extern uint32_t packetCounter;
+extern NetworkManager *networkManager;
+
+// Safely parse a string as uint16_t, returning false on invalid input
+static bool parseUint16(const String &str, uint16_t &out)
+{
+  if (str.length() == 0) return false;
+  char *end = nullptr;
+  unsigned long val = strtoul(str.c_str(), &end, 10);
+  if (end == str.c_str() || *end != '\0') return false; // not a valid number
+  if (val > 65535) return false;
+  out = static_cast<uint16_t>(val);
+  return true;
+}
 
 static void copyAdminPassword(const char *value)
 {
@@ -87,9 +101,6 @@ void setupWebServer(ESP8266WebServer &server)
     Serial.println("handleReconnect");
     handleStaticFile("/reload_success.html");
     
-    // Store the current WiFi credentials before resetting
-    String ssid = WiFi.SSID();
-    String pass = WiFi.psk();
     // Capture request args BEFORE stopping the server (stop invalidates request data)
     bool resetRequested = server.hasArg("reset") && server.arg("reset") == "true";
     
@@ -97,40 +108,37 @@ void setupWebServer(ESP8266WebServer &server)
     server.stop();
     delay(1000);
     
-    WiFiManager wifiManager;
-    // Only reset settings if explicitly requested with a query parameter
     if (resetRequested) {
-      wifiManager.resetSettings();
+      // Full reset: erase credentials and start captive portal
       Serial.println("WiFi settings reset requested");
+      networkManager->resetAndStartConfigPortal();
     } else {
-      // Otherwise, just start the portal but keep existing credentials
-      Serial.println("Starting config portal with existing credentials");
+      // Graceful reconnect: try existing credentials first
+      String ssid = WiFi.SSID();
+      String pass = WiFi.psk();
+      
+      if (ssid.length() > 0) {
+        WiFi.begin(ssid, pass);
+        int timeout = 20;
+        while (timeout > 0 && WiFi.status() != WL_CONNECTED) {
+          delay(500);
+          timeout--;
+          Serial.print(".");
+        }
+        Serial.println();
+        
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("Reconnected to existing WiFi");
+          server.begin();
+          return;
+        }
+      }
+      
+      // Couldn't reconnect — start config portal via networkManager
+      Serial.println("Starting config portal");
+      networkManager->resetAndStartConfigPortal();
     }
     
-    wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
-    
-    // If we have existing credentials, try to connect with them first
-    if (ssid.length() > 0 && !resetRequested) {
-      WiFi.begin(ssid, pass);
-      
-      // Wait up to 10 seconds for connection
-      int timeout = 20;
-      while (timeout > 0 && WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        timeout--;
-        Serial.print(".");
-      }
-      Serial.println();
-      
-      if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("Reconnected to existing WiFi");
-        server.begin();
-        return;
-      }
-    }
-    
-    // If we couldn't connect with existing credentials, start the portal
-    wifiManager.startConfigPortal("ARTNET");
     Serial.println("connected");
     server.begin(); });
 
@@ -569,23 +577,29 @@ void handleJSON()
     // the body is key1=val1&key2=val2&key3=val3 and the ESP8266Webserver has already parsed it
     if (server.hasArg("universe"))
     {
-      unsigned int value = server.arg("universe").toInt();
-      config.universe = constrain(value, UNIVERSE_MIN, UNIVERSE_MAX);
-      configChanged = true;
+      uint16_t value;
+      if (parseUint16(server.arg("universe"), value)) {
+        config.universe = constrain(value, UNIVERSE_MIN, UNIVERSE_MAX);
+        configChanged = true;
+      }
     }
 
     if (server.hasArg("channels"))
     {
-      unsigned int value = server.arg("channels").toInt();
-      config.channels = constrain(value, CHANNELS_MIN, CHANNELS_MAX);
-      configChanged = true;
+      uint16_t value;
+      if (parseUint16(server.arg("channels"), value)) {
+        config.channels = constrain(value, CHANNELS_MIN, CHANNELS_MAX);
+        configChanged = true;
+      }
     }
 
     if (server.hasArg("delay"))
     {
-      unsigned int value = server.arg("delay").toInt();
-      config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
-      configChanged = true;
+      uint16_t value;
+      if (parseUint16(server.arg("delay"), value)) {
+        config.delay = constrain(value, DELAY_MIN, DELAY_MAX);
+        configChanged = true;
+      }
     }
 
     if (server.hasArg("adminPassword"))

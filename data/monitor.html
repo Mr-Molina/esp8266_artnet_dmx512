@@ -37,10 +37,10 @@
           throw new Error("Monitor request failed");
         }
         const data = await response.json();
-        document.getElementById("version").innerHTML = data["version"];
-        document.getElementById("uptime").innerHTML = data["uptime"];
-        document.getElementById("packets").innerHTML = data["packets"];
-        document.getElementById("fps").innerHTML = data["fps"];
+        document.getElementById("version").textContent = data["version"];
+        document.getElementById("uptime").textContent = data["uptime"];
+        document.getElementById("packets").textContent = data["packets"];
+        document.getElementById("fps").textContent = data["fps"];
       } catch (error) {
         document.getElementById("fps").innerHTML = error.message;
       }

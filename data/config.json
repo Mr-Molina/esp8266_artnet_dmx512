@@ -1,5 +1,6 @@
 {
 "universe": 1,
 "channels": 512,
-"delay": 25
+"delay": 25,
+"adminPassword": "admin"
 }

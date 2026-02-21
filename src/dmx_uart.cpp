@@ -37,20 +37,21 @@ void DmxUart::begin()
   Serial.println(DMX_TX_PIN);
 }
 
-// Send the DMX break signal using the serial method
+// Send the DMX break signal using direct GPIO manipulation.
+// We temporarily take over the pin from SoftwareSerial to send the
+// timing-critical BREAK and MAB signals, then hand control back.
 void DmxUart::sendSerialBreak()
 {
-  // End SoftwareSerial to release pin control before manual break
-  dmxSerial->end();
-  digitalWrite(DMX_TX_PIN, LOW);
-  delayMicroseconds(DMX_BREAK); // Hold low for break time
-  digitalWrite(DMX_TX_PIN, HIGH);
-  delayMicroseconds(DMX_MAB); // Hold high for Mark After Break time
-  // Restart SoftwareSerial so it re-initializes its pin state
-  dmxSerial->begin(250000, SWSERIAL_8N2);
-}
+  // Flush any pending data before taking over the pin
+  dmxSerial->flush();
 
-// No longer needed - removed unused method
+  // Temporarily override the pin for manual timing
+  pinMode(DMX_TX_PIN, OUTPUT);
+  digitalWrite(DMX_TX_PIN, LOW);
+  delayMicroseconds(DMX_BREAK); // Hold low for break time (200µs)
+  digitalWrite(DMX_TX_PIN, HIGH);
+  delayMicroseconds(DMX_MAB);   // Hold high for Mark After Break (20µs)
+}
 
 // Send DMX lighting control data over UART to the lights
 void DmxUart::sendDmxData(uint8_t *data, uint16_t length, uint16_t maxChannels)
@@ -87,15 +88,13 @@ void DmxUart::sendDmxData(uint8_t *data, uint16_t length, uint16_t maxChannels)
     noInterrupts(); // Disable interrupts again for DMX timing
   }
 
-  // Send each channel value with proper error handling
+  // Send each channel value
   uint16_t channelsToSend = min(length, maxChannels);
   for (uint16_t i = 0; i < channelsToSend; i++)
   {
     dmxSerial->write(data[i]);
-    // Use a shorter delay to improve stability
-    delayMicroseconds(5);
-    
-    // Add a yield every 64 channels to prevent watchdog timer issues
+
+    // Yield every 64 channels to prevent watchdog timer issues
     if ((i & 0x3F) == 0x3F) {
       interrupts();
       yield();
