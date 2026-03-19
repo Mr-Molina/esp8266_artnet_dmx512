@@ -56,8 +56,9 @@ private:
   SoftwareSerial* dmxSerial;
   
   // Variables to track statistics
-  unsigned long packetCounter;   // How many packets we've sent
-  unsigned long lastPacketTime;  // When we last sent a packet
+  unsigned long packetCounter;   // How many packets we've sent (total)
+  unsigned long ppsCounter;      // Packets since last PPS calculation
+  unsigned long lastPacketTime;  // When we last calculated PPS
 };
 
 #endif // _DMX_UART_H_

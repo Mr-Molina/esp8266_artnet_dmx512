@@ -1,144 +1,104 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<title>Art-Net DMX Controller</title>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link href="style.css" rel="stylesheet" type="text/css">
-<style>
-  .menu-container {
-    max-width: 600px;
-    margin: 0 auto;
-  }
-  .menu-item {
-    margin: 10px 0;
-    background-color: #fff;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    padding: 10px;
-  }
-  .menu-item a {
-    text-decoration: none;
-    color: #333;
-    display: block;
-    font-size: 1.2em;
-  }
-  .menu-item:hover {
-    background-color: #f5f5f5;
-  }
-  .menu-section {
-    margin-top: 30px;
-    border-top: 1px solid #ddd;
-    padding-top: 20px;
-  }
-  .menu-section-title {
-    color: #0b86ca;
-    margin-bottom: 15px;
-  }
-  .status {
-    margin-bottom: 20px;
-    font-size: 0.9em;
-    color: #666;
-  }
-  .danger {
-    background-color: #f8d7da;
-  }
-  .danger a {
-    color: #721c24;
-  }
-</style>
+  <title>Art-Net DMX Controller</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="style.css" rel="stylesheet" type="text/css">
 </head>
 
 <body>
-<h1>Art-Net DMX Controller</h1>
+  <h1>Art-Net DMX Controller</h1>
 
-<div class="status">
-  <div id="status-info">Loading status...</div>
-  <div>Security: <span id="auth-enabled" class="badge">Checking...</span></div>
-  <div>Stored password: <span id="auth-storage" class="badge">Unknown</span></div>
-  <button type="button" class="secondary" id="clear-auth">Clear Stored Password</button>
-</div>
+  <div class="status">
+    <div id="status-info">Loading status...</div>
+    <div>Security: <span id="auth-enabled" class="badge">Checking...</span></div>
+    <div>Stored password: <span id="auth-storage" class="badge">Unknown</span></div>
+    <button type="button" class="secondary" id="clear-auth">Clear Stored Password</button>
+  </div>
 
-<div class="menu-container">
-  <div class="menu-section">
-    <h2 class="menu-section-title">Monitoring</h2>
-    <div class="menu-item">
-      <a href="/monitor.html">View Status & Statistics</a>
+  <div class="menu-container">
+    <div class="menu-section">
+      <h2 class="menu-section-title">Monitoring</h2>
+      <div class="menu-item">
+        <a href="/monitor.html">View Status & Statistics</a>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <h2 class="menu-section-title">Configuration</h2>
+      <div class="menu-item">
+        <a href="/settings.html">DMX Settings</a>
+      </div>
+      <div class="menu-item">
+        <a href="/reconnect">WiFi Configuration (Keep Settings)</a>
+      </div>
+      <div class="menu-item danger">
+        <a href="/reconnect?reset=true">Reset WiFi Settings</a>
+      </div>
+      <div class="menu-item">
+        <a href="/defaults">Reset to Default Settings</a>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <h2 class="menu-section-title">System</h2>
+      <div class="menu-item">
+        <a href="/update.html">Update Firmware</a>
+      </div>
+      <div class="menu-item danger">
+        <a href="/restart">Restart Device</a>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <h2 class="menu-section-title">Other</h2>
+      <div class="menu-item">
+        <a href="/hello.html">Hello Page</a>
+      </div>
     </div>
   </div>
-  
-  <div class="menu-section">
-    <h2 class="menu-section-title">Configuration</h2>
-    <div class="menu-item">
-      <a href="/settings.html">DMX Settings</a>
-    </div>
-    <div class="menu-item">
-      <a href="/reconnect">WiFi Configuration (Keep Settings)</a>
-    </div>
-    <div class="menu-item danger">
-      <a href="/reconnect?reset=true">Reset WiFi Settings</a>
-    </div>
-    <div class="menu-item">
-      <a href="/defaults">Reset to Default Settings</a>
-    </div>
-  </div>
-  
-  <div class="menu-section">
-    <h2 class="menu-section-title">System</h2>
-    <div class="menu-item">
-      <a href="/update.html">Update Firmware</a>
-    </div>
-    <div class="menu-item danger">
-      <a href="/restart">Restart Device</a>
-    </div>
-  </div>
-  
-  <div class="menu-section">
-    <h2 class="menu-section-title">Other</h2>
-    <div class="menu-item">
-      <a href="/hello.html">Hello Page</a>
-    </div>
-  </div>
-</div>
 
-<script src="auth.js"></script>
-<script>
-  const statusInfo = document.getElementById("status-info");
-  const authEnabledEl = document.getElementById("auth-enabled");
-  const authStorageEl = document.getElementById("auth-storage");
+  <script src="auth.js"></script>
+  <script>
+    const statusInfo = document.getElementById("status-info");
+    const authEnabledEl = document.getElementById("auth-enabled");
+    const authStorageEl = document.getElementById("auth-storage");
 
-  function updateStorageBadge() {
-    authStorageEl.textContent = AuthClient.hasPassword() ? "Saved locally" : "Not saved";
-    authStorageEl.className = "badge " + (AuthClient.hasPassword() ? "badge-info" : "badge-muted");
-  }
-
-  async function updateStatus() {
-    try {
-      const response = await AuthClient.request("json");
-      if (!response.ok) {
-        throw new Error("Status request failed");
-      }
-      const data = await response.json();
-      statusInfo.innerHTML = `Firmware: ${data.version} | Uptime: ${data.uptime}s | FPS: ${Number(data.fps).toFixed(1)}`;
-      const authEnabled = !!data.authEnabled;
-      authEnabledEl.textContent = authEnabled ? "Enabled" : "Disabled";
-      authEnabledEl.className = "badge " + (authEnabled ? "badge-success" : "badge-muted");
-    } catch (e) {
-      statusInfo.textContent = "Status unavailable";
-      authEnabledEl.textContent = "Unknown";
-      authEnabledEl.className = "badge badge-muted";
+    function updateStorageBadge() {
+      authStorageEl.textContent = AuthClient.hasPassword() ? "Saved locally" : "Not saved";
+      authStorageEl.className = "badge " + (AuthClient.hasPassword() ? "badge-info" : "badge-muted");
     }
-    updateStorageBadge();
-  }
 
-  document.getElementById("clear-auth").addEventListener("click", () => {
-    AuthClient.clearPassword();
-    updateStorageBadge();
-  });
+    async function updateStatus() {
+      try {
+        const response = await AuthClient.request("json");
+        if (!response.ok) {
+          throw new Error("Status request failed");
+        }
+        const data = await response.json();
+        statusInfo.innerHTML = `Firmware: ${data.version} | Uptime: ${data.uptime}s | FPS: ${Number(data.fps).toFixed(1)}`;
+        const authEnabled = !!data.authEnabled;
+        authEnabledEl.textContent = authEnabled ? "Enabled" : "Disabled";
+        authEnabledEl.className = "badge " + (authEnabled ? "badge-success" : "badge-muted");
+      } catch (e) {
+        statusInfo.textContent = "Status unavailable";
+        authEnabledEl.textContent = "Unknown";
+        authEnabledEl.className = "badge badge-muted";
+      }
+      updateStorageBadge();
+    }
 
-  updateStatus();
-  setInterval(updateStatus, 5000);
-</script>
+    document.getElementById("clear-auth").addEventListener("click", () => {
+      AuthClient.clearPassword();
+      updateStorageBadge();
+    });
+
+    updateStatus();
+    setInterval(updateStatus, 5000);
+  </script>
 
 </body>
+
 </html>

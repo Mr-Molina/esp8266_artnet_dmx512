@@ -1,5 +1,10 @@
 #include "network_manager.h"
 
+// Static AP configuration (used in both begin and resetAndStartConfigPortal)
+static const IPAddress AP_IP(192, 168, 1, 1);
+static const IPAddress AP_GATEWAY(192, 168, 1, 1);
+static const IPAddress AP_SUBNET(255, 255, 255, 0);
+
 // Constructor: Sets up a new NetworkManager with the given hostname
 NetworkManager::NetworkManager(const char* hostname)
   : hostname(hostname), mdnsStarted(false) {
@@ -25,7 +30,7 @@ bool NetworkManager::begin(bool standaloneMode, const char* password) {
   // IP address: 192.168.1.1
   // Gateway: 192.168.1.1
   // Subnet mask: 255.255.255.0
-  wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
+  wifiManager.setAPStaticIPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
   
   // Step 3: Configure blocking mode based on standalone mode
   // In standalone mode, we don't want to block the main program while waiting for WiFi
@@ -89,7 +94,7 @@ void NetworkManager::resetAndStartConfigPortal() {
   
   // Step 2: Configure the access point settings
   // These settings are used when the device creates its own WiFi network
-  wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
+  wifiManager.setAPStaticIPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
   
   // Step 3: Start the configuration portal
   // This creates a WiFi network with our hostname that you can connect to

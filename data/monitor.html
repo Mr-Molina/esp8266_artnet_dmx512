@@ -1,53 +1,56 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<title>Monitor</title>
-<meta charset="utf-8">
-<link href="style.css" rel="stylesheet" type="text/css">
+  <title>Monitor</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="style.css" rel="stylesheet" type="text/css">
 </head>
 
 <body>
 
-<h1>Monitor</h1>
+  <h1>Monitor</h1>
 
-Firmware version:
-<div id="version" name="version">?</div>
+  Firmware version:
+  <div id="version" name="version">?</div>
 
-Uptime:
-<div id="uptime" name="uptime">?</div>
+  Uptime:
+  <div id="uptime" name="uptime">?</div>
 
-Packets received:
-<div id="packets" name="packets">?</div>
+  Packets received:
+  <div id="packets" name="packets">?</div>
 
-Frames per second:
-<div id="fps" name="fps">?</div>
+  Frames per second:
+  <div id="fps" name="fps">?</div>
 
-<div class="nav-button">
-  <a href="/index.html"><button>Back to Main</button></a>
-</div>
+  <div class="nav-button">
+    <a href="/index.html"><button>Back to Main</button></a>
+  </div>
 
-<script src="auth.js"></script>
-<script>
-  async function updateContent() {
-    try {
-      const response = await AuthClient.request("json");
-      if (!response.ok) {
-        throw new Error("Monitor request failed");
+  <script src="auth.js"></script>
+  <script>
+    async function updateContent() {
+      try {
+        const response = await AuthClient.request("json");
+        if (!response.ok) {
+          throw new Error("Monitor request failed");
+        }
+        const data = await response.json();
+        document.getElementById("version").textContent = data["version"];
+        document.getElementById("uptime").textContent = data["uptime"];
+        document.getElementById("packets").textContent = data["packets"];
+        document.getElementById("fps").textContent = data["fps"];
+      } catch (error) {
+        document.getElementById("fps").innerHTML = error.message;
       }
-      const data = await response.json();
-      document.getElementById("version").innerHTML = data["version"];
-      document.getElementById("uptime").innerHTML = data["uptime"];
-      document.getElementById("packets").innerHTML = data["packets"];
-      document.getElementById("fps").innerHTML = data["fps"];
-    } catch (error) {
-      document.getElementById("fps").innerHTML = error.message;
     }
-  }
-  updateContent();
-  
-  // Auto-refresh every 5 seconds
-  setInterval(updateContent, 5000);
-</script>
+    updateContent();
+
+    // Auto-refresh every 5 seconds
+    setInterval(updateContent, 5000);
+  </script>
 
 </body>
+
 </html>

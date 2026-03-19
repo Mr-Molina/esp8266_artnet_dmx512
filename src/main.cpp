@@ -196,7 +196,9 @@ void testCode()
 void setup()
 {
   Serial.begin(115200);
-  while (!Serial) { ; }
+  // Wait up to 2 seconds for serial to connect (skip if no USB attached)
+  unsigned long serialWait = millis();
+  while (!Serial && (millis() - serialWait < 2000)) { yield(); }
   Serial.println("Setup starting");
 
   // Allocate double buffers for DMX data
@@ -363,10 +365,10 @@ void loop()
 #endif
   }
 
-  // If web interface is active, slow down main loop to improve responsiveness
-  if ((millis() - tic_web) < 5000)
+  // If web interface is active, briefly slow down main loop to improve responsiveness
+  if ((millis() - tic_web) < 1000)
   {
-    delay(25);
+    delay(10);
   }
   else
   {
@@ -380,7 +382,7 @@ void loop()
     // Send DMX data at a fixed frame rate (~44Hz)
     static unsigned long lastDmxSend = 0;
     static unsigned long lastWatchdogReset = 0;
-    const unsigned long DMX_FRAME_PERIOD = 23; // ms between DMX frames
+    const unsigned long DMX_FRAME_PERIOD = config.delay; // ms between DMX frames (from settings)
     const unsigned long WATCHDOG_PERIOD = 500; // ms between watchdog resets
 
     unsigned long currentMillis = millis();
